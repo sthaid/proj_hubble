@@ -1,0 +1,10 @@
+#!/bin/bash
+
+gcc -Wall -o sf2 sf2.c -lm
+if [ $? -ne 0 ]; then
+  exit 1
+fi
+
+./sf2
+
+

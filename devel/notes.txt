@@ -1,0 +1,78 @@
+H  = 70 km/s/megaparsec
+
+3.1e22 meters / megaparsec
+
+        70 * 1000 / 3.1e22
+
+Ho = 2.25e-18  /sec
+
+
+3e8 / 2.25e-18  =>   1.33e26
+
+14058111092
+
+H units   km/s/megaparsec
+                              meters/      lightyr/
+             C     H          megaparsec   meter
+OR          3e8 / (70 * 1000 / 3.1e22) * 1.057e-16 / 1e9    = 14.043 billion years
+
+
+H = 70 * 1000 / 3.1e22 = 2.25 e-18 /sec
+
+
+
+---------
+
+universe double in size
+.693 / 2.25e-18
+
+(.693 / 2.25e-18) /86400 / 365 / 1000000   = 9766 million yrs
+
+---------------
+
+https://wmap.gsfc.nasa.gov/universe/bb_tests_cmb.html#:~:text=The%20CMB%20radiation%20was%20emitted,stars%20or%20galaxies%20ever%20existed.
+
+13.7 billion years ago
+The CMB radiation was emitted 13.7 billion years ago, only a few hundred thousand years after the Big Bang, long before stars or galaxies ever existed.May 9, 2016
+
+emitted 400,000 years from the beginning
+
+--------------------
+
+https://stardate.org/astro-guide/galaxy-formation#:~:text=Observations%20by%20Hubble%20Space%20Telescope,to%2014%20billion%20years%20ago.
+
+Observations by Hubble Space Telescope and ground-based instruments show that the first galaxies took shape as little as one billion years after the Big Bang, which probably took place about 13 billion to 14 billion years ago.
+
+
+------------
+
+INTRO TO changing Hubble constant
+
+https://www.forbes.com/sites/startswithabang/2018/06/29/surprise-the-hubble-constant-changes-over-time/?sh=3ae853b49c9a
+
+
+---------------
+
+scale factor
+
+https://en.wikipedia.org/wiki/Scale_factor_(cosmology)
+
+---------------
+
+. Wien’s Displacement Law, which states that the frequency of the peak of the emission (fmax) increases linearly with absolute temperature (T). Conversely, as the temperature of the body increases, the wavelength at the emission peak decreases.
+
+      fmax proportinal to T
+
+
+    $ f_{max} \propto T $
+
+
+-------------------
+
+.666 * ( 1 / (13.77e9 * 365 * 86400) )
+
+-----------
+
+https://www.astro.ucla.edu/~wright/BBhistory.html#:~:text=Universe%20becomes%20transparent.,the%20Universe%20at%20this%20time.
+
+Universe becomes transparent. Temperature is T=3000 K, time is 380,000 years after the Big Bang. Ordinary matter can now fall into the dark matter clumps. The CMB travels freely from this time until now, so the CMB anisotropy gives a picture of the Universe at this time.

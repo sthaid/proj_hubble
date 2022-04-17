@@ -1,0 +1,16 @@
+#!/bin/bash
+
+gcc -Wall -o sf3 sf3.c -lm
+if [ $? -ne 0 ]; then
+  exit 1
+fi
+
+./sf3 > file
+
+# proj_bb/utils.c
+set -x
+gnuplot-qt  -p \
+ -e "set term qt size 1500,600" \
+ -e "plot 'file'"
+
+
