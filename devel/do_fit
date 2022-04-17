@@ -1,0 +1,16 @@
+
+gcc -Wall -Werror -o fit fit.c -lm
+if [ $? -ne 0 ]; then
+  exit
+fi
+
+./fit > file
+
+set -x
+gnuplot-qt  -p \
+ -e "set term qt size 1500,600" \
+ -e "set xrange [0:100]" \
+ -e "set yrange [0:45]" \
+ -e "plot 'file'"
+
+
