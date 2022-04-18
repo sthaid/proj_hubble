@@ -45,7 +45,7 @@ int main(int argc, char **argv)
             tbl[i].t, get_h(tbl[i].t), tbl[i].h);
     }
 
-#if 0
+#if 1
     for (double t = .00038; t < 20; t += .001) {
         printf("%12.6f %12.6f\n", t, get_sf(t));
     }
@@ -82,6 +82,7 @@ double k1m, k2m;
 
 double get_h_for_sf_init(double t);
 
+#if 0
 //#define GET_START   8.0  //okay
 //#define GET_END    11.6
 //#define GET_START   7.0  //okay
@@ -92,25 +93,19 @@ double get_h_for_sf_init(double t);
 //#define GET_END    12.6
 //#define GET_START   6.0  //okay   GOOD  <===========
 //#define GET_END    12.6
+#endif
 #define GET_START   6.3  //okay   GOOD
 #define GET_END    12.6
-
-#define K98  9.80
 
 // t in byrs
 double get_sf(double t)
 {
     double a;
 
-#if 1
     if (t >= GET_START && t < GET_END) {
         a = get(t);
-    } else 
-#endif
-    if (t < K98) {  // t >= .000380 && t < 9.8
+    } else if (t < 9.8) {  // t >= .000380 && t < 9.8
         a = k1m + k2m * pow(t, 2./3.);
-    //} else if (t < 11) {
-        //a = sf_tbl[11000];
     } else if (t < 19.6) {  // t >= 9.8 && t < 19.6
         int idx;
         double t0, t1, a0, a1;
@@ -136,9 +131,7 @@ void init_sf(void)
     // init sf_tbl for time range 9.8 to 19.6 inclusive
     sf_tbl[13800] = 1;
     for (t = 13801; t <= 19600; t++) {
-        //printf("h = %e\n", (get_h_for_sf_init(t/1000.)*H_TO_SI));
         sf_tbl[t] = sf_tbl[t-1] + (get_h_for_sf_init(t/1000.)*H_TO_SI) * sf_tbl[t-1] * S_PER_MYR;
-        //printf("sf_tbl[%d] = %e\n", t, sf_tbl[t]);
     }
     for (t = 13799; t >= 5800; t--) {
         sf_tbl[t] = sf_tbl[t+1] - (get_h_for_sf_init(t/1000.)*H_TO_SI) * sf_tbl[t+1] * S_PER_MYR;
@@ -148,15 +141,11 @@ void init_sf(void)
     double t0,t1,a0,a1;
     t0 = .000380;      // 380,000 yrs
     a0 = 2.7 / 3000;   // .0009
-    t1 = K98;
-    a1 = sf_tbl[(int)(K98*1000)];
-    //printf("a1 = %e\n", a1);
+    t1 = 9.8;
+    a1 = sf_tbl[(int)(9.8*1000)];
     k2m = (a1 - a0) / (pow(t1, 2./3.) - pow(t0, 2./3.));
     k1m = a0 - k2m * pow(t0, 2./3.);
 
-    //printf("k1,k2 = %e %e\n", k1m, k2m);
-
-    // 
     {
     double t, a, a1;
     line_t l1, l2;
@@ -197,7 +186,6 @@ double get_h_for_sf_init(double t)
     for (int i = 0; i < sizeof(tbl)/sizeof(tbl[0]) - 1; i++) {
         if (t >= tbl[i].t && t <= tbl[i+1].t) {
             double y = interpolate(t, tbl[i].t, tbl[i+1].t, tbl[i].h, tbl[i+1].h);
-            //printf("intrp y = %e\n", y);
             return y;
         }
     }
