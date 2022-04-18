@@ -1,6 +1,9 @@
 #!/bin/bash
 
-gcc -Wall -o sf3 sf3.c -lm
+#gcc -Wall -o sf3 sf3.c fit.c -lm
+#exit
+
+gcc -Wall -o sf3 sf3.c fit.c -lm
 if [ $? -ne 0 ]; then
   exit 1
 fi

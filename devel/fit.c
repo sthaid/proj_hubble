@@ -2,15 +2,7 @@
 #include <math.h>
 #include <stdlib.h>
 
-typedef struct {
-    double x;
-    double y;
-} point_t;
-
-typedef struct {
-    point_t p;
-    double theta;
-} line_t;
+#include "common.h"
 
 #define DEG2RAD(d)   ((d) * (M_PI / 180))
 
@@ -19,15 +11,13 @@ line_t l2 = { {80, 40}, DEG2RAD(45) };
 //line_t l1 = { {10, 10},  DEG2RAD(5)  };
 //line_t l2 = { {20, 40}, DEG2RAD(80) };
 
-void init(line_t *l1, line_t *l2);
-double get(double x);
-
 double squared(double x);
 point_t intersect(line_t *l1, line_t *l2);
 double distance(point_t *p1, point_t *p2);
 line_t move_line_point(line_t *l, double d);
 double interpolate(double x, double x0, double x1, double y0, double y1);
 
+#if 0
 // -----------------  MAIN  ----------------------------------
 
 int main(int argc, char **argv)
@@ -40,6 +30,7 @@ int main(int argc, char **argv)
 
     return 0;
 }
+#endif
 
 // -----------------  SMOOTH ATTACH CURVES  ------------------
 
@@ -61,6 +52,7 @@ double get(double x)
         y = interpolate(x, p_line_start.x, p_line_end.x, p_line_start.y, p_line_end.y);
     } else {
         y = circle_p.y - sqrt(squared(circle_r) - squared(x-circle_p.x));   // xxx + or -
+        //y = circle_p.y + sqrt(squared(circle_r) - squared(x-circle_p.x));   // xxx + or -
     }
 
     return y;

@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <math.h>
 
+#include "common.h"
+
 #define M_PER_KM   1000.               // meters per kilometer
 #define M_PER_MPC  3.086e22            // meters per megaparsec
 #define S_PER_YR   3.156e7             // seconds per year (365.25 days)
@@ -18,7 +20,7 @@ double get_h(double t);
 
 double get_sf(double t);
 void init_sf(void);
-double interpolate(double x, double x0, double x1, double y0, double y1);
+static double interpolate(double x, double x0, double x1, double y0, double y1);
 
 // -----------------  MAIN --------------------------------------------------
 
@@ -28,12 +30,27 @@ int main(int argc, char **argv)
 
     init_sf();
 
-#if 1
-    for (double t = .00038; t < 15; t += .001) {
+    static struct {
+        double t;
+        double h;
+    } tbl[] = {
+        { 9.8, 100 }, 
+        { 10.9, 90 },
+        { 12.3, 80 },
+        { 14.0, 70 },
+        { 16.3, 60 },
+        { 19.6, 50 }, };
+    for (int i = 0; i < 6; i++) {
+        fprintf(stderr, "# t=%f  h=%f  h_exp=%f\n", 
+            tbl[i].t, get_h(tbl[i].t), tbl[i].h);
+    }
+
+#if 0
+    for (double t = .00038; t < 20; t += .001) {
         printf("%12.6f %12.6f\n", t, get_sf(t));
     }
 #else
-    for (double t = 2; t < 15; t += .001) {
+    for (double t = 2; t < 20; t += .001) {
         printf("%12.6f %12.6f\n", t, get_h(t));
     }
 #endif
@@ -65,12 +82,35 @@ double k1m, k2m;
 
 double get_h_for_sf_init(double t);
 
+//#define GET_START   8.0  //okay
+//#define GET_END    11.6
+//#define GET_START   7.0  //okay
+//#define GET_END    12.6
+//#define GET_START   6.5  //okay  ??
+//#define GET_END    13.0
+//#define GET_START   6.0  //okay   GOOD
+//#define GET_END    12.6
+//#define GET_START   6.0  //okay   GOOD  <===========
+//#define GET_END    12.6
+#define GET_START   6.3  //okay   GOOD
+#define GET_END    12.6
+
+#define K98  9.80
+
+// t in byrs
 double get_sf(double t)
 {
     double a;
 
-    if (t < 9.8) {  // t >= .000380 && t < 9.8
+#if 1
+    if (t >= GET_START && t < GET_END) {
+        a = get(t);
+    } else 
+#endif
+    if (t < K98) {  // t >= .000380 && t < 9.8
         a = k1m + k2m * pow(t, 2./3.);
+    //} else if (t < 11) {
+        //a = sf_tbl[11000];
     } else if (t < 19.6) {  // t >= 9.8 && t < 19.6
         int idx;
         double t0, t1, a0, a1;
@@ -100,7 +140,7 @@ void init_sf(void)
         sf_tbl[t] = sf_tbl[t-1] + (get_h_for_sf_init(t/1000.)*H_TO_SI) * sf_tbl[t-1] * S_PER_MYR;
         //printf("sf_tbl[%d] = %e\n", t, sf_tbl[t]);
     }
-    for (t = 13799; t >= 9800; t--) {
+    for (t = 13799; t >= 5800; t--) {
         sf_tbl[t] = sf_tbl[t+1] - (get_h_for_sf_init(t/1000.)*H_TO_SI) * sf_tbl[t+1] * S_PER_MYR;
     }
 
@@ -108,13 +148,35 @@ void init_sf(void)
     double t0,t1,a0,a1;
     t0 = .000380;      // 380,000 yrs
     a0 = 2.7 / 3000;   // .0009
-    t1 = 9.8;
-    a1 = sf_tbl[9800];
+    t1 = K98;
+    a1 = sf_tbl[(int)(K98*1000)];
     //printf("a1 = %e\n", a1);
     k2m = (a1 - a0) / (pow(t1, 2./3.) - pow(t0, 2./3.));
     k1m = a0 - k2m * pow(t0, 2./3.);
 
     //printf("k1,k2 = %e %e\n", k1m, k2m);
+
+    // 
+    {
+    double t, a, a1;
+    line_t l1, l2;
+
+    t = GET_START;
+    a = k1m + k2m * pow(t, 2./3.);
+    a1 = k1m + k2m * pow(t+.001, 2./3.);
+    l1.p.x = t;
+    l1.p.y = a;
+    l1.theta = atan2(a1-a, .001);
+
+    t = GET_END;
+    a = sf_tbl[(int)(GET_END*1000)];
+    a1 = sf_tbl[(int)(GET_END*1000+1)];
+    l2.p.x = t;
+    l2.p.y = a;
+    l2.theta = atan2(a1-a, .001);
+
+    init(&l1, &l2);
+    }
 }
 
 double get_h_for_sf_init(double t)
@@ -123,12 +185,14 @@ double get_h_for_sf_init(double t)
         double t;
         double h;
     } tbl[] = {
-        { 9.8, 100 }, 
-        { 10.9, 90 },
+        { 9.8, 150 },    // 100
+        { 10.9,115 },    //  90
         { 12.3, 80 },
         { 14.0, 70 },
         { 16.3, 60 },
         { 19.6, 50 }, };
+
+    if (t < 9.8) return 100;
 
     for (int i = 0; i < sizeof(tbl)/sizeof(tbl[0]) - 1; i++) {
         if (t >= tbl[i].t && t <= tbl[i+1].t) {
@@ -144,7 +208,7 @@ double get_h_for_sf_init(double t)
 
 // -----------------  UTILS  ------------------------------------------------
 
-double interpolate(double x, double x0, double x1, double y0, double y1)
+static double interpolate(double x, double x0, double x1, double y0, double y1)
 {
     double result;
 
