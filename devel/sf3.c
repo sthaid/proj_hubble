@@ -27,6 +27,21 @@ static double interpolate(double x, double x0, double x1, double y0, double y1);
 int main(int argc, char **argv)
 {
     //printf("H_TO_SI  %e\n", H_TO_SI);
+    double tmax;
+
+    if (argc < 2) {
+        printf("ERROR tmax expected\n");
+        return 1;
+    }
+    if (sscanf(argv[1], "%lf", &tmax) != 1) {
+        printf("ERROR tmax invalid '%s'\n", argv[1]);
+        return 1;
+    }
+    if (tmax > 1000) {
+        printf("ERROR tmax invalid %f\n", tmax);
+        return 1;
+    }
+        
 
     init_sf();
 
@@ -45,15 +60,17 @@ int main(int argc, char **argv)
             tbl[i].t, get_h(tbl[i].t), tbl[i].h);
     }
 
-#if 1
-    for (double t = .00038; t < 20; t += .001) {
-        printf("%12.6f %12.6f\n", t, get_sf(t));
+    FILE *fpsf = fopen("filesf", "w");
+    for (double t = 1; t < tmax; t += .001) {
+        fprintf(fpsf, "%12.6f %12.6f\n", t, get_sf(t));
     }
-#else
-    for (double t = 2; t < 20; t += .001) {
-        printf("%12.6f %12.6f\n", t, get_h(t));
+    fclose(fpsf);
+
+    FILE *fph = fopen("fileh", "w");
+    for (double t = 1; t < tmax; t += .001) {
+        fprintf(fph, "%12.6f %12.6f\n", t, get_h(t));
     }
-#endif
+    fclose(fph);
 
     return 0;
 }
@@ -200,12 +217,14 @@ static double interpolate(double x, double x0, double x1, double y0, double y1)
 {
     double result;
 
+#if 0
     if ((x >= x0 && x <= x1) || (x >= x1 && x <= x0)) {
         // okay
     } else {
         printf("ERROR interpolate x=%lf x0=%lf x1=%lf\n", x, x0, x1);
         exit(1);
     }
+#endif
 
     result = y0 + (x - x0) * ((y1 - y0) / (x1 - x0));
     return result;

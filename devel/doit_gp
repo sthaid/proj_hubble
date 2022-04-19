@@ -1,19 +1,24 @@
 #!/bin/bash
 
-#gcc -Wall -o sf3 sf3.c fit.c -lm
-#exit
-
 gcc -Wall -o sf3 sf3.c fit.c -lm
 if [ $? -ne 0 ]; then
   exit 1
 fi
 
-./sf3 > file
+tmax=$1
+if [ "$tmax" = "" ]; then
+  tmax=20
+fi
+
+./sf3  $tmax
 
 # proj_bb/utils.c
 set -x
 gnuplot-qt  -p \
- -e "set term qt size 1500,600" \
- -e "plot 'file'"
+ -e "set term qt size 1500,400" \
+ -e "plot 'filesf'"
 
+gnuplot-qt  -p \
+ -e "set term qt size 1500,400" \
+ -e "plot 'fileh'"
 
