@@ -16,6 +16,8 @@
 
 #define H_TO_SI (M_PER_KM / M_PER_MPC)
 
+    const double c = 3e8;
+
 double get_h(double t);
 double get_hsi(double t);
 
@@ -72,10 +74,10 @@ int main(int argc, char **argv)
     }
 
     trace_photon_back();
-    //trace_photon_fwd();
+    trace_photon_fwd();
 
     FILE *fpsf = fopen("filesf", "w");
-    for (double t = 1; t < tmax; t += .001) {
+    for (double t = .00038; t < tmax; t += .001) {
         fprintf(fpsf, "%12.6f %12.6f\n", t, get_sf(t));
     }
     fclose(fpsf);
@@ -85,6 +87,14 @@ int main(int argc, char **argv)
         fprintf(fph, "%12.6f %12.6f\n", t, get_h(t));
     }
     fclose(fph);
+
+    FILE *fphorizon = fopen("filehorizon", "w");
+    for (double t = .00038; t < tmax; t += .001) {
+        double horizon = c / (get_h(t) * H_TO_SI);
+        horizon /= M_PER_BLYR;
+        fprintf(fphorizon, "%12.6f %12.6f\n", t, horizon);
+    }
+    fclose(fphorizon);
 
     return 0;
 }
@@ -261,11 +271,10 @@ static double interpolate(double x, double x0, double x1, double y0, double y1)
 
 // xxxxxxxxxxxxxx
 
+double tback, xback;
 void trace_photon_back(void)
 {
     double t, x;
-
-    const double c = 3e8;
 
     #define dt (t/1000)
     #define h (get_hsi(t/S_PER_BYR))
@@ -278,9 +287,9 @@ void trace_photon_back(void)
     t = t_start_byr * S_PER_BYR;
     x = 0;
 
-    FILE *fpdist = fopen("filedist", "w");
+    FILE *fpdistback = fopen("filedistback", "w");
     while (true) {
-        fprintf(fpdist, "%f   %f\n",
+        fprintf(fpdistback, "%f   %f\n",
             t / S_PER_BYR,
             x / M_PER_BLYR);
 
@@ -291,7 +300,10 @@ void trace_photon_back(void)
         if (t < .00038 * S_PER_BYR) break;
         if (x >= 0) break;  // ?
     }
-    fclose(fpdist);
+    fclose(fpdistback);
+
+    tback = t;
+    xback = x;
 
     double diameter;
     diameter = (-x / M_PER_BLYR)  *
@@ -300,6 +312,7 @@ void trace_photon_back(void)
     printf("A_START = %f \n", get_sf(t_start_byr));
     printf("A_END   = %f \n", get_sf(t/S_PER_BYR));
     printf("DIAMETER = %f\n", diameter);
+    printf("TEMPERATUS = %f\n", 2.7 / get_sf(t/S_PER_BYR));
 
 
     #undef dt
@@ -310,24 +323,26 @@ void trace_photon_back(void)
 void trace_photon_fwd(void)
 {
     double t, x;
-    const double c = 3e8;
 
     #define dt (t/1000)
     #define h (get_hsi(t/S_PER_BYR))
 
-    t = .00038 * S_PER_BYR;
-    x = -0.042349 * M_PER_BLYR;
+    //t = .00038 * S_PER_BYR;
+    //x = -0.042349 * M_PER_BLYR;
+    t = tback;
+    x = xback;
 
+    FILE *fpdistfwd = fopen("filedistfwd", "w");
     while (true) {
-        printf("T = %f   X = %f\n",
+        fprintf(fpdistfwd, "%f   %f\n",
             t / S_PER_BYR,
             x / M_PER_BLYR);
+        if (t / S_PER_BYR > 13.8) break;
         if (x >= 0) break;
-        if (t / S_PER_BYR > 1000) break;
         x += (c + h * x) * dt;
         t += dt;
-
     }
+    fclose(fpdistfwd);
 
     #undef dt
     #undef h

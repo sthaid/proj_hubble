@@ -7,13 +7,15 @@ fi
 
 tmax=$1
 if [ "$tmax" = "" ]; then
-  tmax=20
+  tmax=30
 fi
 
 ./sf3  $tmax
 
 # proj_bb/utils.c
+
 set -x
+
 gnuplot-qt  -p \
  -e "set term qt size 1500,400" \
  -e "plot 'filesf'"
@@ -24,4 +26,12 @@ gnuplot-qt  -p \
 
 gnuplot-qt  -p \
  -e "set term qt size 1500,400" \
- -e "plot 'filedist'"
+ -e "plot 'filedistback'"
+
+gnuplot-qt  -p \
+ -e "set term qt size 1500,400" \
+ -e "plot 'filedistfwd'"
+
+gnuplot-qt  -p \
+ -e "set term qt size 1500,400" \
+ -e "plot 'filehorizon'"
