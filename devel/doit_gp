@@ -22,3 +22,6 @@ gnuplot-qt  -p \
  -e "set term qt size 1500,400" \
  -e "plot 'fileh'"
 
+gnuplot-qt  -p \
+ -e "set term qt size 1500,400" \
+ -e "plot 'filedist'"
