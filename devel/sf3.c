@@ -216,7 +216,7 @@ double get_h_for_sf_init(double t)
         double h;
     } tbl[] = {
 #ifdef USE_FIT
-        { 9.8, 150 },    // 100
+        { 9.8, 130 },    // 100
         { 10.9,115 },    //  90
 #else
         { 9.8, 100 },    // 100
