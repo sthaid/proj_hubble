@@ -104,6 +104,18 @@ Hubble Parameter Values
 Galaxy formation
 - time = 1 byr
 
+=======================================
+UNITS USED BY THIS SOFTWARE
+=======================================
+
+This sofware will primarily use these units.
+In some cases SI units are used, and comments will indicate such.
+
+Time:             billion years from the big bang
+Hubble Parameter: (km/s)/Mpc
+Temperature:      kelvin
+Distance:         billion light years
+
 =======================================================
 ====================  BACKUP  =========================
 =======================================================
