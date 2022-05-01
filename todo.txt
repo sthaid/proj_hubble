@@ -1,0 +1,10 @@
+start notes file
+- what I've learned so far
+- units used
+
+start building pgm
+- sf.c
+- common.h
+- utils  for sdl
+- include plots of the sf, hubble, and more
+
