@@ -1,0 +1,109 @@
+=======================================
+SCALE FACTOR & HUBBLE CONSTANT
+=======================================
+
+https://en.wikipedia.org/wiki/Hubble%27s_law
+--------------------------------------------
+
+Ho = 70 (km/s)/Mpc   
+- kilometers per sec per Megaparsec
+- Ho is the hubble constant now
+- H is time dependent Hubble Parameter
+
+Converting hubble constant to SI units
+- 3.1e22 meters / megaparsec
+- Ho = 70 * 1000 / 3.1e22 = 2.25 e-18 /sec
+
+https://en.wikipedia.org/wiki/Scale_factor_(cosmology)
+------------------------------------------------------
+
+        da/dt
+H(t) = -------
+         a
+
+a is the scale factor of the universe. 
+- the scale factor (a) equals 1 now
+
+ERA                      FROM                TO          SCALE FACTOR
+radiation domminated     end-of-inflation    47,000      a = k * t ^ (1/2)
+matter dominated         47,000              9.8 Byrs    a = k * t ^ (2/3)
+dark energy dominated    9.8 Byrs            forever     a = k * exp(H * t)   
+                                                         where H = sqrt(Lambda/3)
+
+https://www.nobelprize.org/uploads/2018/06/schmidt-lecture_slides.pdf
+--------------------------------------------------------------------
+
+slide 32
+age: billion years
+hubble parameterer: km/s/mpc
+   age     hubble
+   ---     ------
+   9.8     100
+   10.9    90
+   12.3    80
+   14.0    70
+   16.3    60
+   19.6    50
+
+https://www.astro.ucla.edu/~wright/BBhistory.html
+-------------------------------------------------
+
+  "Universe becomes transparent. Temperature is T=3000 K, time is 380,000 years 
+   after the Big Bang. Ordinary matter can now fall into the dark matter clumps. 
+   The CMB travels freely from this time until now, so the CMB anisotropy gives 
+   a picture of the Universe at this time."
+
+https://astronomy.swin.edu.au/cosmos/b/blackbody+radiation#:~:text=Wien's%20Displacement%20Law%2C%20which%20states,at%20the%20emission%20peak%20decreases.
+---------------------------------------------------------------------------------
+
+  "Wien’s Displacement Law, which states that the frequency of the peak of the 
+   emission (fmax) increases linearly with absolute temperature (T). Conversely, 
+   as the temperature of the body increases, the wavelength at the emission 
+   peak decreases."
+
+https://stardate.org/astro-guide/galaxy-formation#:~:text=Observations%20by%20Hubble%20Space%20Telescope,to%2014%20billion%20years%20ago.
+---------------------------------------------------------------------------------
+
+  "Observations by Hubble Space Telescope and ground-based instruments show that 
+   the first galaxies took shape as little as one billion years after the Big Bang, 
+   which probably took place about 13 billion to 14 billion years ago."
+
+More References
+---------------
+
+https://en.wikipedia.org/wiki/Chronology_of_the_universe
+https://www.forbes.com/sites/startswithabang/2018/04/28/ask-ethan-how-big-will-the-universe-get/?sh=76c586c41f52
+https://www.forbes.com/sites/startswithabang/2018/06/29/surprise-the-hubble-constant-changes-over-time/?sh=3ae853b49c9a
+
+SUMMARY
+-------
+
+Scale factor in matter and dark energy dominated eras:
+- matter dominated era        47,000     9.8 Byrs    a = k * t ^ (2/3)
+- dark energy dominated era   9.8 Byrs   forever     a = k * exp(H * t)   
+
+Universe becomes transparent
+- time = .000380 byr  (380,000 years after the big bang)
+- temperature = 3000 k
+- using Wien Displacement Law, applied to CMB, 
+  the scale factor of universe at time=.00038 byr ...
+          a(.00038)       2.7
+          ---------  = ---------        a(.00038) = 2.7/3000 = 0.0009
+          a(now)         3000
+
+Hubble Parameter Values
+- age     hubble parameter
+  ---     ----------------
+  9.8         100
+  10.9        90
+  12.3        80
+  14.0        70
+  16.3        60
+  19.6        50
+
+Galaxy formation
+- time = 1 byr
+
+=======================================================
+====================  BACKUP  =========================
+=======================================================
