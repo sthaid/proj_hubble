@@ -65,6 +65,8 @@
 //     4:  19.6 to infinity    exp(H*(T-19.6) + ln(a(19.6)))
 // 
 
+#include <common.h>
+
 //
 // defines
 // 
@@ -132,7 +134,7 @@ void sf_init(void)
     for (tmyr = 13801; tmyr <= 19600; tmyr++) {
         sf_tbl[tmyr] = sf_tbl[tmyr-1] + (sf_init_get_h(tmyr/1000.)*H_TO_SI) * sf_tbl[tmyr-1] * S_PER_MYR;
     }
-    for (t = 13799; t >= 9800; t--) {
+    for (tmyr = 13799; tmyr >= 9800; tmyr--) {
         sf_tbl[tmyr] = sf_tbl[tmyr+1] - (sf_init_get_h(tmyr/1000.)*H_TO_SI) * sf_tbl[tmyr+1] * S_PER_MYR;
     }
 
@@ -165,7 +167,42 @@ void sf_init(void)
     join_init(&l1, &l2);
 
     // unit test
-    // xxx
+    static struct ut {
+        double t;
+        double h_exp;
+        double sf_exp;
+    } ut[] = {
+        { 0.000380, 0,   0.009 },
+        { 9.8,      100, 0     },
+        { 10.9,     90,  0     },
+        { 12.3,     80,  0     },
+        { 13.8,      0,  1     },
+        { 14.0,     70,  0     },
+        { 16.3,     60,  0     },
+        { 19.6,     50,  0     },
+        { 30.0,     50,  0     },
+        {100.0,     50,  0     },
+            };
+    printf("        TIME           SF       SF_EXP            H        H_EXP\n");
+    for (int i = 0; i < ARRAY_SIZE(ut); i++) {
+        struct ut *x = &ut[i];
+        double sf = get_sf(x->t);
+        double h  = get_h(x->t);
+        printf("%12.6f ", x->t);
+        printf("%12.4f ", sf);
+        if (x->sf_exp) {
+            printf("%12.4f ", x->sf_exp);
+        } else {
+            printf("%12s ", "");
+        }
+        printf("%12.1f ", h);
+        if (x->h_exp) {
+            printf("%12.1f ", x->h_exp);
+        } else {
+            printf("%12s ", "");
+        }
+        printf("\n");
+    }
 }
 
 static double sf_init_get_h(double t)

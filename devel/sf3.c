@@ -143,7 +143,7 @@ double get_h_for_sf_init(double t);
 #define GET_START   6.3  //okay   GOOD
 #define GET_END    12.6
 
-#define USE_FIT
+//#define USE_FIT
 
 // t in byrs
 double get_sf(double t)
@@ -184,7 +184,7 @@ void init_sf(void)
     for (t = 13801; t <= 19600; t++) {
         sf_tbl[t] = sf_tbl[t-1] + (get_h_for_sf_init(t/1000.)*H_TO_SI) * sf_tbl[t-1] * S_PER_MYR;
     }
-    for (t = 13799; t >= 5800; t--) {
+    for (t = 13799; t >= 9800; t--) {
         sf_tbl[t] = sf_tbl[t+1] - (get_h_for_sf_init(t/1000.)*H_TO_SI) * sf_tbl[t+1] * S_PER_MYR;
     }
 
