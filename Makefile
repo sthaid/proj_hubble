@@ -1,9 +1,12 @@
 CC       = gcc
-CFLAGS   = -g -O2 -Wall -I.
-LDFLAGS  = -lm 
+CFLAGS   = -g -O2 -Wall -I. -Iutil
+LDFLAGS  = -lm -lSDL2 -lSDL2_ttf -lpthread
 
 TARGET   = hubble
-SOURCES  = main.c sf.c
+SOURCES  = main.c sf.c \
+           util/util_sdl.c util/util_misc.c
+
+util/util_sdl.o: CFLAGS += $(shell sdl2-config --cflags)
 
 OBJ := $(SOURCES:.c=.o)
 
