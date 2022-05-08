@@ -128,3 +128,13 @@ Hubble Parameter: (km/s)/Mpc
 Temperature:      kelvin
 Distance:         billion light years
 
+
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxx MORE xxxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+https://en.wikipedia.org/wiki/Observable_universe#:~:text=The%20observable%20universe%20is%20thus,8.8%C3%971026%20m).
+
+           1
+a(t) = ------------
+        1 + z
