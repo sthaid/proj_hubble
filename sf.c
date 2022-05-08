@@ -63,7 +63,6 @@
 //     2:  6.3 to 12.6         smooth connection of range 1 and 3
 //     3:  12.6 to 19.6        table lookup
 //     4:  19.6 to infinity    exp(H*(T-19.6) + ln(a(19.6)))
-// 
 
 #include <common.h>
 
@@ -110,11 +109,14 @@ static double sf_tbl[20000];
 // the matter dominated era
 static double k1m, k2m;
 
+static const double c = 3e8;
+
 //
 // prototypes
 //
 
 static double sf_init_get_h(double t);
+static void unit_test(void);
 static void join_init(line_t *l1, line_t *l2);
 static double join_get_y(double x);
 static double squared(double x);
@@ -166,43 +168,8 @@ void sf_init(void)
 
     join_init(&l1, &l2);
 
-    // unit test
-    static struct ut {
-        double t;
-        double h_exp;
-        double sf_exp;
-    } ut[] = {
-        { 0.000380, 0,   0.009 },
-        { 9.8,      100, 0     },
-        { 10.9,     90,  0     },
-        { 12.3,     80,  0     },
-        { 13.8,      0,  1     },
-        { 14.0,     70,  0     },
-        { 16.3,     60,  0     },
-        { 19.6,     50,  0     },
-        { 30.0,     50,  0     },
-        {100.0,     50,  0     },
-            };
-    printf("        TIME           SF       SF_EXP            H        H_EXP\n");
-    for (int i = 0; i < ARRAY_SIZE(ut); i++) {
-        struct ut *x = &ut[i];
-        double sf = get_sf(x->t);
-        double h  = get_h(x->t);
-        printf("%12.6f ", x->t);
-        printf("%12.4f ", sf);
-        if (x->sf_exp) {
-            printf("%12.4f ", x->sf_exp);
-        } else {
-            printf("%12s ", "");
-        }
-        printf("%12.1f ", h);
-        if (x->h_exp) {
-            printf("%12.1f ", x->h_exp);
-        } else {
-            printf("%12s ", "");
-        }
-        printf("\n");
-    }
+    // init is complete, perform unit test
+    unit_test();
 }
 
 static double sf_init_get_h(double t)
@@ -221,7 +188,7 @@ static double sf_init_get_h(double t)
         { 19.6, 50 }, };
 
     if (t < 9.8 || t > 19.6) {
-        printf("ERROR t=%lf is not in tbl\n", t);
+        printf("ERROR: t=%lf is not in tbl\n", t);
         exit(1);
     }
 
@@ -236,7 +203,31 @@ static double sf_init_get_h(double t)
     exit(1);
 }
 
-// -----------------  SCALE FACTOR API  -------------------------------------
+static void unit_test(void)
+{
+    printf("scale factor test\n");
+    printf("  age=%10.6f sf=%6.4f sf_exp=%6.4f\n", 13.8, get_sf(13.8), 1.);
+    printf("  age=%10.6f sf=%6.4f sf_exp=%6.4f\n", .000380, get_sf(.000380), .0009);
+
+    printf("hubble parameter test\n");
+    printf("  age=%10.6f h=%5.1f h_exp=%5.1f\n", 9.8, get_h(9.8), 100.);
+    printf("  age=%10.6f h=%5.1f h_exp=%5.1f\n", 10.9, get_h(10.9), 90.);
+    printf("  age=%10.6f h=%5.1f h_exp=%5.1f\n", 12.3, get_h(12.3), 80.);
+    printf("  age=%10.6f h=%5.1f h_exp=%5.1f\n", 14.0, get_h(14.0), 70.);
+    printf("  age=%10.6f h=%5.1f h_exp=%5.1f\n", 16.3, get_h(16.3), 60.);
+    printf("  age=%10.6f h=%5.1f h_exp=%5.1f\n", 19.6, get_h(19.6), 50.);
+    printf("  age=%10.6f h=%5.1f h_exp=%5.1f\n", 30.0, get_h(30.0), 50.);
+    printf("  age=%10.6f h=%5.1f h_exp=%5.1f\n", 100.0, get_h(100.0), 50.);
+
+    printf("diameter test\n");
+    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  13.8, get_diameter(13.8), 93.);   // wikipedia
+    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  14.9, get_diameter(14.9), 100.);  // ask-ethan
+    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  24.5, get_diameter(24.5), 200.);  // ask-ethan
+    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  37.6, get_diameter(37.6), 400.);  // ask-ethan
+    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  49.8, get_diameter(49.8), 800.);  // ask-ethan
+}
+
+// -----------------  API - GET SCALE FACTOR  -------------------------------
 
 double get_sf(double t)
 {
@@ -265,7 +256,8 @@ double get_sf(double t)
     return a;
 }
 
-// xxx redo to use h2si
+// -----------------  API - GET HUBBLE PARAMETER  ---------------------------
+
 double get_h(double t)
 {
     double h, a, a1;
@@ -274,17 +266,72 @@ double get_h(double t)
     a = get_sf(t);
     a1 = get_sf(t+dt);
 
-    h = ((a1 - a) / dt) / a;
-    h /= S_PER_BYR;
-    h *= M_PER_MPC;
-    h /= 1000;
+    h = ((a1 - a) / (dt*S_PER_BYR)) / a;
+    h = h / H_TO_SI;
+
     return h;
 }
 
-// -----------------  JOIN 2 LINES SMOOTHLY  --------------------------------
+// -----------------  API - GET UNIVERSE DIAMETER  --------------------------
 
-// xxx description,
-// xxx and comments throughout
+// return diamter of universe in blyr
+double get_diameter(double t)
+{
+    double t_start = t;
+    double x, dt, h;
+    double diameter;
+
+    // init
+    t = t * S_PER_BYR;  // t is now in secs
+    x = 0;
+
+    // assuming the earth is permanent ...
+
+    // starting from supplied time t and with photon at distance 0 from earth,
+    // calculate the distance of the photon back in time as time 
+    // decrement to .00038 byrs (time of the CMB that we now observe)
+    //
+    // in this loop: t and dt are secs, h is /sec, and x is meters
+    while (true) {
+        dt = t / 1000;
+        h  = get_h(t/S_PER_BYR) * H_TO_SI;
+        x -= (c + h*x) * dt;
+        t -= dt;
+
+        if (t < .00038 * S_PER_BYR) {
+            break;
+        }
+
+        if (x >= 0) {
+            printf("ERROR: x>=0, x=%f h=%f t=%f t_start=%f\n", 
+                   x, h/H_TO_SI, t/S_PER_BYR, t_start);
+            exit(1);
+        }
+    }
+
+    // x is now the distance from the earth to the photon at t=.00038 byr.
+    // This is the distance where the CMB that is observed now originated.
+    // The radius of the universe now, is where that spot in space where the
+    // CMB originated, is now. And the diameter is twice that.
+    diameter = (-x / M_PER_BLYR)  *
+               (get_sf(t_start) / get_sf(t/S_PER_BYR)) *
+               2;
+
+#if 0
+    // debug prints
+    printf("A_START = %f \n", get_sf(t_start));
+    printf("A_END   = %f \n", get_sf(t/S_PER_BYR));
+    printf("DIAMETER = %f\n", diameter);
+    printf("TEMPERATUS = %f\n", 2.7 / get_sf(t/S_PER_BYR));
+#endif
+
+    // return result
+    return diameter;
+}
+
+// -----------------  SUPPORT - JOIN 2 LINES SMOOTHLY  -----------------------
+
+// xxx description, and review comments throughout
 
 static double   x_start, x_end;
 static point_t  circle_p;
@@ -355,7 +402,7 @@ static double join_get_y(double x)
     return y;
 }
 
-// -----------------  UTILS  ------------------------------------------------
+// -----------------  SUPPORT - UTILS  ---------------------------------------
 
 static double squared(double x)
 {

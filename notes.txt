@@ -45,6 +45,18 @@ hubble parameterer: km/s/mpc
    16.3    60
    19.6    50
 
+https://www.forbes.com/sites/startswithabang/2018/04/28/ask-ethan-how-big-will-the-universe-get
+-----------------------------------------------------------------------------------------------
+
+diameter of the univers
+
+   age     diameter
+   ---     --------
+   13.8    92   blyr
+   14.9    100
+   24.5    200
+   37.6    400
+
 https://www.astro.ucla.edu/~wright/BBhistory.html
 -------------------------------------------------
 
@@ -72,8 +84,8 @@ More References
 ---------------
 
 https://en.wikipedia.org/wiki/Chronology_of_the_universe
-https://www.forbes.com/sites/startswithabang/2018/04/28/ask-ethan-how-big-will-the-universe-get/?sh=76c586c41f52
-https://www.forbes.com/sites/startswithabang/2018/06/29/surprise-the-hubble-constant-changes-over-time/?sh=3ae853b49c9a
+https://www.forbes.com/sites/startswithabang/2018/04/28/ask-ethan-how-big-will-the-universe-get
+https://www.forbes.com/sites/startswithabang/2018/06/29/surprise-the-hubble-constant-changes-over-time
 
 SUMMARY
 -------
@@ -116,6 +128,3 @@ Hubble Parameter: (km/s)/Mpc
 Temperature:      kelvin
 Distance:         billion light years
 
-=======================================================
-====================  BACKUP  =========================
-=======================================================
