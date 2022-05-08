@@ -225,6 +225,10 @@ static void unit_test(void)
     printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  24.5, get_diameter(24.5), 200.);  // ask-ethan
     printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  37.6, get_diameter(37.6), 400.);  // ask-ethan
     printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  49.8, get_diameter(49.8), 800.);  // ask-ethan
+
+    // xxx del
+    //printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  1.0,  get_diameter(1.0), 0.);  // test
+    //printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  .0005,  get_diameter(.0005), 0.);  // test
 }
 
 // -----------------  API - GET SCALE FACTOR  -------------------------------

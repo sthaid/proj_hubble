@@ -5,6 +5,9 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <math.h>
+#include <assert.h>
+
+#include <util_misc.h>
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
@@ -12,5 +15,8 @@ void sf_init(void);
 double get_sf(double t);
 double get_h(double t);
 double get_diameter(double t);
+
+int display_init(bool swap_white_black);
+void display_hndlr(void);
 
 #endif
