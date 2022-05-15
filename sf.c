@@ -285,6 +285,15 @@ double get_diameter(double t)
     double x, dt, h;
     double diameter;
 
+    static double saved_diameter;
+
+    // verify t
+
+    // if we already have result then return it
+    if (t_start == 13.8 && saved_diameter) {
+        return saved_diameter;
+    }
+        
     // init
     t = t * S_PER_BYR;  // t is now in secs
     x = 0;
@@ -328,6 +337,10 @@ double get_diameter(double t)
     printf("DIAMETER = %f\n", diameter);
     printf("TEMPERATUS = %f\n", 2.7 / get_sf(t/S_PER_BYR));
 #endif
+
+    if (t_start == 13.8) {
+        saved_diameter = diameter;
+    }
 
     // return result
     return diameter;

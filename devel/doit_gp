@@ -12,6 +12,7 @@ fi
 
 ./sf3  $tmax
 
+exit
 # proj_bb/utils.c
 
 set -x

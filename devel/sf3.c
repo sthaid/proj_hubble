@@ -51,6 +51,18 @@ int main(int argc, char **argv)
 
     init_sf();
 
+    {
+    while (1) {
+    double t = 13.8;
+    printf("? "); scanf("%lf", &t);
+    double hsi = get_hsi(t);
+    printf("t = %f\n", t);
+    printf("hubble distance = %f\n", c / hsi / M_PER_BLYR);
+    printf("hubble time     = %f\n", 1 / hsi / S_PER_BYR);
+    }
+    }
+
+
     static struct {
         double t;
         double h;
@@ -143,7 +155,7 @@ double get_h_for_sf_init(double t);
 #define GET_START   6.3  //okay   GOOD
 #define GET_END    12.6
 
-//#define USE_FIT
+#define USE_FIT
 
 // t in byrs
 double get_sf(double t)
