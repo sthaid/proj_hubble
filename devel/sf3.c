@@ -317,6 +317,9 @@ void trace_photon_back(void)
     tback = t;
     xback = x;
 
+    printf("%0.20f\n", xback);
+exit(1);
+
     double diameter;
     diameter = (-x / M_PER_BLYR)  *
                (get_sf(t_start_byr) / get_sf(t/S_PER_BYR)) *

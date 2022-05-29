@@ -69,7 +69,8 @@ add .5 and then floor
 #endif
 #define MAX_GALAXY    10000000
 #define MAX_GALAXY_DIST    100.
-#define MAX_GALAXY_Z     8.73     // MAX_GALAXY_DIST * tan(0.5)
+//#define MAX_GALAXY_Z     8.73     // MAX_GALAXY_DIST * tan(0.5)
+#define MAX_GALAXY_Z     1.
 
 #define DEG_PER_RAD  (180. / M_PI)
 
@@ -115,8 +116,6 @@ void galaxy_init(void)
     galaxy = calloc(MAX_GALAXY, sizeof(struct galaxy_s));
     printf("galaxy = %p\n", galaxy);
     if (galaxy == NULL) exit(1);
-
-exit(1);
 
     for (i = 0; i < MAX_GALAXY; i++) {
         struct galaxy_s *g = &galaxy[i];

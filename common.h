@@ -4,19 +4,28 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <unistd.h>
 #include <math.h>
+#include <pthread.h>
 #include <assert.h>
 
 #include <util_misc.h>
 
-#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+#define M_PER_KM     1000.               // meters per kilometer
+#define M_PER_MPC    3.086e22            // meters per megaparsec
+#define S_PER_YR     3.156e7             // seconds per year (365.25 days)
+#define S_PER_BYR    (S_PER_YR * 1e9)
+#define S_PER_MYR    (S_PER_YR * 1e6)
+#define M_PER_LYR    9.461e15
+#define M_PER_BLYR   (M_PER_LYR * 1e9)
 
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))  // xxx in misc
+
+// sf.c
 void sf_init(void);
 double get_sf(double t);
 double get_h(double t);
+double get_hsi(double t_sec);
 double get_diameter(double t);
-
-int display_init(bool swap_white_black);
-void display_hndlr(void);
 
 #endif

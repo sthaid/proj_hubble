@@ -70,6 +70,7 @@
 // defines
 // 
 
+#if 0
 #define M_PER_KM     1000.               // meters per kilometer
 #define M_PER_MPC    3.086e22            // meters per megaparsec
 #define S_PER_YR     3.156e7             // seconds per year (365.25 days)
@@ -77,6 +78,7 @@
 #define S_PER_MYR    (S_PER_YR * 1e6)
 #define M_PER_LYR    9.461e15
 #define M_PER_BLYR   (M_PER_LYR * 1e9)
+#endif
 
 #define H_TO_SI (M_PER_KM / M_PER_MPC)
 
@@ -274,6 +276,21 @@ double get_h(double t)
     h = h / H_TO_SI;
 
     return h;
+}
+
+double get_hsi(double t_sec)
+{
+    double h_si, a, a1;
+    double t_byr = t_sec / S_PER_BYR;
+    double dt_sec = t_sec / 100000;
+    double dt_byr = dt_sec / S_PER_BYR;
+
+    a = get_sf(t_byr);
+    a1 = get_sf(t_byr + dt_byr);
+
+    h_si = ((a1 - a) / dt_sec) / a;
+
+    return h_si;
 }
 
 // -----------------  API - GET UNIVERSE DIAMETER  --------------------------
