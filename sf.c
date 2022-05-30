@@ -70,16 +70,6 @@
 // defines
 // 
 
-#if 0
-#define M_PER_KM     1000.               // meters per kilometer
-#define M_PER_MPC    3.086e22            // meters per megaparsec
-#define S_PER_YR     3.156e7             // seconds per year (365.25 days)
-#define S_PER_BYR    (S_PER_YR * 1e9)
-#define S_PER_MYR    (S_PER_YR * 1e6)
-#define M_PER_LYR    9.461e15
-#define M_PER_BLYR   (M_PER_LYR * 1e9)
-#endif
-
 #define H_TO_SI (M_PER_KM / M_PER_MPC)
 
 #define JOIN_START   6.3  // byr
@@ -169,7 +159,7 @@ void sf_init(void)
     join_init(&l1, &l2);
 
     // init is complete, perform unit test
-    unit_test();
+    //unit_test();
 }
 
 static double sf_init_get_h(double t)
@@ -205,10 +195,6 @@ static double sf_init_get_h(double t)
 
 static void unit_test(void)
 {
-    // xxx
-    //printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  13.8, get_diameter(13.8,NULL), 93.);   // wikipedia
-    return;  
-
     printf("scale factor test\n");
     printf("  age=%10.6f sf=%6.4f sf_exp=%6.4f\n", 13.8, get_sf(13.8), 1.);
     printf("  age=%10.6f sf=%6.4f sf_exp=%6.4f\n", .000380, get_sf(.000380), .0009);
@@ -296,7 +282,7 @@ double get_hsi(double t_sec)
 // return diamter of universe in blyr
 double get_diameter(double t_backtrack_start, double *d_backtrack_end_arg)
 {
-    #define DELTA_T_SECS (1000e-9 * S_PER_BYR)  // 1000 years
+    //#define DELTA_T_SECS (1000e-9 * S_PER_BYR)  // 1000 years
 
     double t_si, d_si, h_si;
     double d_backtrack_end, t_backtrack_end, diameter;
@@ -311,19 +297,12 @@ double get_diameter(double t_backtrack_start, double *d_backtrack_end_arg)
     // at distance 0 from earth, calculate the distance of the photon from earth
     // going back in time to .00038 byrs (time of the CMB that we now observe)
     while (true) {
-        h_si  = get_hsi(t_si);
-        d_si -= (c_si + h_si * d_si) * DELTA_T_SECS;
+        // xxx comment
+        h_si  = get_hsi(t_si - DELTA_T_SECS);
+        d_si = (d_si - c_si * DELTA_T_SECS) / (1 + h_si * DELTA_T_SECS);
         t_si -= DELTA_T_SECS;
 
-#if 0
-        static int count;
-        if (count++ > 100000) {
-            printf("t = %f\n", t_si / S_PER_BYR);
-            count=0;
-        }
-#endif
-
-        if (t_si < (.00038 * S_PER_BYR)) {
+        if (t_si < (.00038 * S_PER_BYR + DELTA_T_SECS/2)) {
             break;
         }
 

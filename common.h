@@ -21,6 +21,9 @@
 
 #define c_si 3e8
 
+#define DELTA_T_SECS (10000 * S_PER_YR)  // 10000 years
+
+
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))  // xxx in misc
 
 // sf.c

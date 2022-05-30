@@ -5,7 +5,6 @@
 // defines
 //
 
-#define T_START .000380   // byr = 380,000 years
 
 //
 // typdedefs
@@ -22,8 +21,8 @@ double disp_width = 93;   // xxx init someplace else
 
 state_t state;
 double  t_done;
-double  t;
 double  d_start;
+double  t;
 double  d;
 
 //
@@ -47,8 +46,7 @@ int main(int argc, char **argv)
     // init
     sf_init();
     cmb_sim_init();
-while (1) pause();
-//return 0;
+while (1) pause();  // xxx let the thread run
     display_init();
 
     // runtime
@@ -75,12 +73,16 @@ void * cmb_sim_thread(void *cx)
 {
     double d_si, t_si, h_si;
 
-    #define DELTA_T_SECS (1000e-9 * S_PER_BYR)  // 1000 years
-
     while (true) {
         // poll for state == RUNNING
         while (state != RUNNING) {
             usleep(10000);
+        }
+
+        if (d == d_start) {
+            double d_cmb_origion = d_start * get_sf(t) / get_sf(.000380);
+            double temperature = 3000 * (get_sf(.00038) / get_sf(t));
+            printf("START t=%f  d_photon=%f  d_cmb_origion=%f  temperature=%f\n", t, d, d_cmb_origion, temperature);
         }
 
         // xxx comments
@@ -97,14 +99,18 @@ void * cmb_sim_thread(void *cx)
         // xxx comments
         if (d >= 0) {
             state = DONE;
-            printf("DONE  %f  %f\n", t, d);
+            double d_cmb_origion = d_start * get_sf(t) / get_sf(.000380);
+            double temperature = 3000 * (get_sf(.00038) / get_sf(t));
+            printf("DONE t=%f  d_photon=%f  d_cmb_origion=%f  temperature=%f\n", t, d, d_cmb_origion, temperature);
             continue;
         }
 
         // delay to adjust rate xxx 
         static int count;
         if (count++ == 100000) {
-            printf("%f  %f\n", t, d);
+            double d_cmb_origion = d_start * get_sf(t) / get_sf(.000380);
+            double temperature = 3000 * (get_sf(.00038) / get_sf(t));
+            printf("t=%f  d_photon=%f  d_cmb_origion=%f  temperature=%f\n", t, d, d_cmb_origion, temperature);
             count = 0;
         }
     }
@@ -112,16 +118,12 @@ void * cmb_sim_thread(void *cx)
 
 void sim_reset(void)
 {
-    state = STOPPED;
-    t_done    = (t_done == 0 ? 13.8 : t_done);
-    t         = T_START;
+    state  = STOPPED;
 
+    t_done = 13.8;  // xxx make adjustable
     get_diameter(t_done, &d_start);
-    printf("d_start = %f\n", d_start);
-    //d_start   = -0.042349;   // xxx tbd, func of t_done
-    //d_start   = -0.041829;
-
-    d         = d_start;
+    t = .000380;
+    d = d_start;
 }
 
 void sim_pause(void)
