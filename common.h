@@ -19,6 +19,8 @@
 #define M_PER_LYR    9.461e15
 #define M_PER_BLYR   (M_PER_LYR * 1e9)
 
+#define c_si 3e8
+
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))  // xxx in misc
 
 // sf.c
@@ -26,6 +28,6 @@ void sf_init(void);
 double get_sf(double t);
 double get_h(double t);
 double get_hsi(double t_sec);
-double get_diameter(double t);
+double get_diameter(double t_backtrack_start, double *d_backtrack_end);
 
 #endif

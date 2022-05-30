@@ -47,7 +47,8 @@ int main(int argc, char **argv)
     // init
     sf_init();
     cmb_sim_init();
-while (1) pause();
+//while (1) pause();
+return 0;
     display_init();
 
     // runtime
@@ -72,8 +73,7 @@ void cmb_sim_init(void)
 
 void * cmb_sim_thread(void *cx)
 {
-    const double c_si = 3e8;
-    double d_si, t_si;
+    double d_si, t_si, h_si;
 
     #define DELTA_T_SECS (1000e-9 * S_PER_BYR)  // 1000 years
 
@@ -86,8 +86,9 @@ void * cmb_sim_thread(void *cx)
         // xxx comments
         d_si = d * M_PER_BLYR;
         t_si = t * S_PER_BYR;
+        h_si = get_hsi(t_si);
         
-        d_si += (c_si + get_hsi(t_si) * d_si) * DELTA_T_SECS;
+        d_si += (c_si + h_si * d_si) * DELTA_T_SECS;
         t_si += DELTA_T_SECS;
 
         d = d_si / M_PER_BLYR;
@@ -115,6 +116,7 @@ void sim_reset(void)
     t_done    = (t_done == 0 ? 13.8 : t_done);
     t         = T_START;
     d_start   = -0.042349;   // xxx tbd, func of t_done
+    d_start   = -0.041829;
     d         = d_start;
 }
 

@@ -111,8 +111,6 @@ static double sf_tbl[20000];
 // the matter dominated era
 static double k1m, k2m;
 
-static const double c = 3e8;
-
 //
 // prototypes
 //
@@ -207,6 +205,10 @@ static double sf_init_get_h(double t)
 
 static void unit_test(void)
 {
+    // xxx
+    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  13.8, get_diameter(13.8,NULL), 93.);   // wikipedia
+    return;  
+
     printf("scale factor test\n");
     printf("  age=%10.6f sf=%6.4f sf_exp=%6.4f\n", 13.8, get_sf(13.8), 1.);
     printf("  age=%10.6f sf=%6.4f sf_exp=%6.4f\n", .000380, get_sf(.000380), .0009);
@@ -222,15 +224,11 @@ static void unit_test(void)
     printf("  age=%10.6f h=%5.1f h_exp=%5.1f\n", 100.0, get_h(100.0), 50.);
 
     printf("diameter test\n");
-    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  13.8, get_diameter(13.8), 93.);   // wikipedia
-    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  14.9, get_diameter(14.9), 100.);  // ask-ethan
-    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  24.5, get_diameter(24.5), 200.);  // ask-ethan
-    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  37.6, get_diameter(37.6), 400.);  // ask-ethan
-    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  49.8, get_diameter(49.8), 800.);  // ask-ethan
-
-    // xxx del
-    //printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  1.0,  get_diameter(1.0), 0.);  // test
-    //printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  .0005,  get_diameter(.0005), 0.);  // test
+    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  13.8, get_diameter(13.8,NULL), 93.);   // wikipedia
+    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  14.9, get_diameter(14.9,NULL), 100.);  // ask-ethan
+    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  24.5, get_diameter(24.5,NULL), 200.);  // ask-ethan
+    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  37.6, get_diameter(37.6,NULL), 400.);  // ask-ethan
+    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  49.8, get_diameter(49.8,NULL), 800.);  // ask-ethan
 }
 
 // -----------------  API - GET SCALE FACTOR  -------------------------------
@@ -296,67 +294,69 @@ double get_hsi(double t_sec)
 // -----------------  API - GET UNIVERSE DIAMETER  --------------------------
 
 // return diamter of universe in blyr
-double get_diameter(double t)
+double get_diameter(double t_backtrack_start, double *d_backtrack_end_arg)
 {
-    double t_start = t;
-    double x, dt, h;
-    double diameter;
+    #define DELTA_T_SECS (1000e-9 * S_PER_BYR)  // 1000 years
 
-    static double saved_diameter;
+    double t_si, d_si, h_si;
+    double d_backtrack_end, t_backtrack_end, diameter;
 
-    // verify t
-
-    // if we already have result then return it
-    if (t_start == 13.8 && saved_diameter) {
-        return saved_diameter;
-    }
-        
     // init
-    t = t * S_PER_BYR;  // t is now in secs
-    x = 0;
+    t_si = t_backtrack_start * S_PER_BYR;  // secs
+    d_si = 0;   // meters
 
-    // assuming the earth is permanent ...
-
-    // starting from supplied time t and with photon at distance 0 from earth,
-    // calculate the distance of the photon back in time as time 
-    // decrement to .00038 byrs (time of the CMB that we now observe)
-    //
-    // in this loop: t and dt are secs, h is /sec, and x is meters
+    // assume the earth is permanent ...
+    // 
+    // starting from caller supplied time t_backtrack_start  and with photon 
+    // at distance 0 from earth, calculate the distance of the photon from earth
+    // going back in time to .00038 byrs (time of the CMB that we now observe)
     while (true) {
-        dt = t / 1000;
-        h  = get_h(t/S_PER_BYR) * H_TO_SI;
-        x -= (c + h*x) * dt;
-        t -= dt;
+        h_si  = get_hsi(t_si);
+        d_si -= (c_si + h_si * d_si) * DELTA_T_SECS;
+        t_si -= DELTA_T_SECS;
 
-        if (t < .00038 * S_PER_BYR) {
+        static int count;
+        if (count++ > 1000) {
+            printf("t = %f\n", t_si / S_PER_BYR);
+            count=0;
+        }
+
+        if (t_si < (.00038 * S_PER_BYR)) {
             break;
         }
 
-        if (x >= 0) {
-            printf("ERROR: x>=0, x=%f h=%f t=%f t_start=%f\n", 
-                   x, h/H_TO_SI, t/S_PER_BYR, t_start);
+        if (d_si >= 0) {
+            printf("ERROR: d_si>=0: d_si=%f h=%f t=%f t_backtrack_start=%f\n", 
+                   d_si, h_si/H_TO_SI, t_si/S_PER_BYR, t_backtrack_start);
             exit(1);
         }
     }
+
+    // converrt the distance of the photon from earth to blyr units;
+    // convert the time the backtrack ended to byr units (should be close to .00038 byr)
+    d_backtrack_end = -d_si / M_PER_BLYR;
+    t_backtrack_end = t_si / S_PER_BYR;
 
     // x is now the distance from the earth to the photon at t=.00038 byr.
     // This is the distance where the CMB that is observed now originated.
     // The radius of the universe now, is where that spot in space where the
     // CMB originated, is now. And the diameter is twice that.
-    diameter = (-x / M_PER_BLYR)  *
-               (get_sf(t_start) / get_sf(t/S_PER_BYR)) *
+    diameter = d_backtrack_end *
+               (get_sf(t_backtrack_start) / get_sf(t_backtrack_end)) *
                2;
 
-#if 0
+#if 1
     // debug prints
-    printf("A_START = %f \n", get_sf(t_start));
-    printf("A_END   = %f \n", get_sf(t/S_PER_BYR));
-    printf("DIAMETER = %f\n", diameter);
-    printf("TEMPERATUS = %f\n", 2.7 / get_sf(t/S_PER_BYR));
+    printf("t_bt_start, t_bt_end = %f %f\n", t_backtrack_start, t_backtrack_end);
+    printf("a_bt_start, a_bt_end = %f %f\n", get_sf(t_backtrack_start), get_sf(t_backtrack_end));
+    printf("cmb temperature      = %f\n", 2.7 / get_sf(t_backtrack_end));
+    printf("d_bt_end             = %f\n", d_backtrack_end);
+    printf("diameter             = %f\n", diameter);
 #endif
 
-    if (t_start == 13.8) {
-        saved_diameter = diameter;
+    // xxx
+    if (d_backtrack_end_arg) {
+        *d_backtrack_end_arg = d_backtrack_end;
     }
 
     // return result
