@@ -47,8 +47,8 @@ int main(int argc, char **argv)
     // init
     sf_init();
     cmb_sim_init();
-//while (1) pause();
-return 0;
+while (1) pause();
+//return 0;
     display_init();
 
     // runtime
@@ -103,7 +103,7 @@ void * cmb_sim_thread(void *cx)
 
         // delay to adjust rate xxx 
         static int count;
-        if (count++ == 1000) {
+        if (count++ == 100000) {
             printf("%f  %f\n", t, d);
             count = 0;
         }
@@ -115,8 +115,12 @@ void sim_reset(void)
     state = STOPPED;
     t_done    = (t_done == 0 ? 13.8 : t_done);
     t         = T_START;
-    d_start   = -0.042349;   // xxx tbd, func of t_done
-    d_start   = -0.041829;
+
+    get_diameter(t_done, &d_start);
+    printf("d_start = %f\n", d_start);
+    //d_start   = -0.042349;   // xxx tbd, func of t_done
+    //d_start   = -0.041829;
+
     d         = d_start;
 }
 

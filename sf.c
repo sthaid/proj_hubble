@@ -206,7 +206,7 @@ static double sf_init_get_h(double t)
 static void unit_test(void)
 {
     // xxx
-    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  13.8, get_diameter(13.8,NULL), 93.);   // wikipedia
+    //printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  13.8, get_diameter(13.8,NULL), 93.);   // wikipedia
     return;  
 
     printf("scale factor test\n");
@@ -315,11 +315,13 @@ double get_diameter(double t_backtrack_start, double *d_backtrack_end_arg)
         d_si -= (c_si + h_si * d_si) * DELTA_T_SECS;
         t_si -= DELTA_T_SECS;
 
+#if 0
         static int count;
-        if (count++ > 1000) {
+        if (count++ > 100000) {
             printf("t = %f\n", t_si / S_PER_BYR);
             count=0;
         }
+#endif
 
         if (t_si < (.00038 * S_PER_BYR)) {
             break;
@@ -334,18 +336,18 @@ double get_diameter(double t_backtrack_start, double *d_backtrack_end_arg)
 
     // converrt the distance of the photon from earth to blyr units;
     // convert the time the backtrack ended to byr units (should be close to .00038 byr)
-    d_backtrack_end = -d_si / M_PER_BLYR;
+    d_backtrack_end = d_si / M_PER_BLYR;
     t_backtrack_end = t_si / S_PER_BYR;
 
     // x is now the distance from the earth to the photon at t=.00038 byr.
     // This is the distance where the CMB that is observed now originated.
     // The radius of the universe now, is where that spot in space where the
     // CMB originated, is now. And the diameter is twice that.
-    diameter = d_backtrack_end *
+    diameter = -d_backtrack_end *
                (get_sf(t_backtrack_start) / get_sf(t_backtrack_end)) *
                2;
 
-#if 1
+#if 0
     // debug prints
     printf("t_bt_start, t_bt_end = %f %f\n", t_backtrack_start, t_backtrack_end);
     printf("a_bt_start, a_bt_end = %f %f\n", get_sf(t_backtrack_start), get_sf(t_backtrack_end));
