@@ -230,7 +230,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         double temperature = TEMPERATURE(t);
         char *ctrl_str;
 
-        yidx = 30 + temperature * ((255. - 30) / 3000);
+        yidx = 50 + temperature * ((255. - 50) / 3000);
         if (yidx < 0) yidx = 0;
         if (yidx > 255) yidx = 255;
         sdl_render_fill_rect(pane, &(rect_t){0,0,pane->w, pane->h}, yellow[yidx]);
@@ -243,6 +243,13 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
 
             sdl_render_point(pane, x, y, SDL_BLUE, 5);
         }
+
+        double d_cmb_orig = -d_start * (get_sf(t) / get_sf(.00038));
+        sdl_render_circle(pane, 
+            pane->w / 2, pane->h / 2,
+            d_cmb_orig * (pane->w / disp_width),
+            10, SDL_BLUE);
+
 
         ctrl_str = (state == STOPPED && t == .00038 ? "RUN"    :
                     state == STOPPED                ? "RESUME" :
