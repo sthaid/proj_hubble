@@ -12,6 +12,9 @@
      (s) == RUNNING ? "RUNNING" : \
      (s) == DONE    ? "DONE"    : \
                       (assert(0),""))
+
+#define DEG2RAD(deg)  ((deg) * (M_PI / 180))
+
 //
 // typdedefs
 // 
@@ -195,6 +198,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
     rect_t * pane = &pane_cx->pane;
 
     #define SDL_EVENT_CTRL       (SDL_EVENT_USER_DEFINED + 0)
+    #define SDL_EVENT_ZOOM       (SDL_EVENT_USER_DEFINED + 1)
 
     static int yellow[256];
     int i;
@@ -207,6 +211,8 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         vars = pane_cx->vars = calloc(1,sizeof(*vars));
         INFO("PANE x,y,w,h  %d %d %d %d\n",
             pane->x, pane->y, pane->w, pane->h);
+
+        assert(pane->w == pane->h);
 
         for (i = 0; i < 256; i++) {
             yellow[i] = FIRST_SDL_CUSTOM_COLOR+i;
@@ -227,8 +233,16 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         yidx = 30 + temperature * ((255. - 30) / 3000);
         if (yidx < 0) yidx = 0;
         if (yidx > 255) yidx = 255;
-
         sdl_render_fill_rect(pane, &(rect_t){0,0,pane->w, pane->h}, yellow[yidx]);
+
+        for (int deg = 0; deg < 360; deg += 45) {
+            int x,y;
+
+            x = pane->w/2 + d * (pane->w / disp_width) * cos(DEG2RAD(deg));
+            y = pane->h/2 + d * (pane->h / disp_width) * sin(DEG2RAD(deg));
+
+            sdl_render_point(pane, x, y, SDL_BLUE, 5);
+        }
 
         ctrl_str = (state == STOPPED && t == .00038 ? "RUN"    :
                     state == STOPPED                ? "RESUME" :
@@ -241,12 +255,15 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             SDL_EVENT_CTRL, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
 
         sdl_render_printf(pane, 0, ROW2Y(1,FONT_SZ), FONT_SZ, SDL_WHITE, SDL_BLACK, 
-            "STATE = %s", 
-            STATE_STR(state));
+            "STATE = %s  DISP_WIDTH=%0.6f",  
+            STATE_STR(state), disp_width);
 
         sdl_render_printf(pane, 0, ROW2Y(3,FONT_SZ), FONT_SZ, SDL_WHITE, SDL_BLACK, 
             "TIME=%0.6f  D=%0.6f  TEMP=%0.1f",
             t, d, temperature);
+
+        sdl_register_event(pane, &(rect_t){0,0,pane->w,pane->h}, 
+            SDL_EVENT_ZOOM, SDL_EVENT_TYPE_MOUSE_WHEEL, pane_cx);
 
         return PANE_HANDLER_RET_NO_ACTION;
     }
@@ -265,6 +282,12 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             } else {
                 sim_reset();
             }
+            break;
+        case SDL_EVENT_ZOOM: ;
+            int dy = event->mouse_wheel.delta_y;
+            disp_width += dy;
+            // xxx clip
+            if (disp_width < 1) disp_width = 1;
             break;
         default: 
             break;
