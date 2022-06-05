@@ -1,3 +1,7 @@
+// XXX
+// - keys for pause and continue and reset
+// - seperate reset button
+// - main pain prints
 #include <common.h>
 #include <util_sdl.h>
 
@@ -15,11 +19,21 @@
 
 #define DEG2RAD(deg)  ((deg) * (M_PI / 180))
 
+#define MAX_GRAPH_POINTS 1000
+
 //
 // typdedefs
 // 
 
 typedef enum {STOPPED, RUNNING, DONE} state_t;
+
+typedef struct {
+    char *title;
+    char *units;
+    int precision;
+    double max_yval;
+    double y[MAX_GRAPH_POINTS];
+} graph_t;
 
 //
 // variables
@@ -34,6 +48,8 @@ double  d_start;
 double  t;
 double  d;
 
+graph_t graph[4];
+
 //
 // prototypes
 //
@@ -47,6 +63,7 @@ void sim_resume(void);
 void display_init(void);
 void display_hndlr(void);
 int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event);
+int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event);
 
 // -----------------  MAIN  ---------------------------------------
   
@@ -87,8 +104,8 @@ void * cmb_sim_thread(void *cx)
         }
 
         if (d == d_start) {
-            double d_cmb_origion = d_start * get_sf(t) / get_sf(.000380);
-            printf("START t=%f  d_photon=%f  d_cmb_origion=%f  temperature=%f\n", t, d, d_cmb_origion, TEMPERATURE(t));
+            double d_cmb_origin = d_start * get_sf(t) / get_sf(.000380);
+            printf("START t=%f  d_photon=%f  d_cmb_origin=%f  temperature=%f\n", t, d, d_cmb_origin, TEMPERATURE(t));
         }
 
         // xxx comments
@@ -102,13 +119,28 @@ void * cmb_sim_thread(void *cx)
         d = d_si / M_PER_BLYR;
         t = t_si / S_PER_BYR;
 
+        // xxx these distances should be > 0
+        double d_cmb_origin = d_start * get_sf(t) / get_sf(.000380);
+
+        // xxx   sf, temp, dist
+        int idx = (t / t_done) * MAX_GRAPH_POINTS;
+        if (idx >= 0 && idx < MAX_GRAPH_POINTS) {
+            graph[0].y[idx] = get_sf(t);
+            graph[1].y[idx] = TEMPERATURE(t);
+            graph[2].y[idx] = -d;
+            graph[3].y[idx] = -d_cmb_origin;
+        }
+
         // xxx comments
         if (d >= 0) {
             state = DONE;
-            double d_cmb_origion = d_start * get_sf(t) / get_sf(.000380);
-            printf("DONE t=%f  d_photon=%f  d_cmb_origion=%f  temperature=%f\n", t, d, d_cmb_origion, TEMPERATURE(t));
+            //double d_cmb_origin = d_start * get_sf(t) / get_sf(.000380);
+            printf("DONE t=%f  d_photon=%f  d_cmb_origin=%f  temperature=%f\n", t, d, d_cmb_origin, TEMPERATURE(t));
             continue;
         }
+
+
+
 
         // delay to adjust rate xxx 
         static int count1;
@@ -119,8 +151,8 @@ void * cmb_sim_thread(void *cx)
 
         static int count;
         if (count++ == 100000) {
-            double d_cmb_origion = d_start * get_sf(t) / get_sf(.000380);
-            printf("t=%f  d_photon=%f  d_cmb_origion=%f  temperature=%f\n", t, d, d_cmb_origion, TEMPERATURE(t));
+            double d_cmb_origin = d_start * get_sf(t) / get_sf(.000380);
+            printf("t=%f  d_photon=%f  d_cmb_origin=%f  temperature=%f\n", t, d, d_cmb_origin, TEMPERATURE(t));
             count = 0;
         }
     }
@@ -128,12 +160,47 @@ void * cmb_sim_thread(void *cx)
 
 void sim_reset(void)
 {
+    graph_t *g;
+
     state = STOPPED;
 
     t_done = 13.8;  // xxx make adjustable
     get_diameter(t_done, &d_start);
     t = .000380;  // xxx define
     d = d_start;
+
+    for (int i = 0; i < 4; i++) {
+        memset(graph[i].y, 0, sizeof(graph[i].y));
+    }
+
+    g = &graph[0];
+    g->max_yval  = get_sf(t_done);
+    g->title     = "SCALE_FACTOR";
+    g->units     = "";
+    g->precision = 3;
+    g->y[0]      = get_sf(.000380);
+
+    g = &graph[1];
+    g->max_yval  = 100;
+    g->title     = "TEMP";
+    g->units     = " K";
+    g->precision = 1;
+    g->y[0]      = TEMPERATURE(.00038);
+
+    g = &graph[2];
+    g->max_yval  = 8;  //xxx
+    g->title     = "D_PHOTON";  // xxx name
+    g->units     = " BLYR";
+    g->precision = 3;
+    g->y[0]      = -d_start;
+
+    g = &graph[3];
+    g->max_yval  = 50;  //xxx
+    g->title     = "D_CMB_ORIGIN";  // xxx name
+    g->units     = " BLYR";
+    g->precision = 3;
+    double d_cmb_orig = -d_start * (get_sf(t) / get_sf(.00038));  //xxx
+    g->y[0]      = d_cmb_orig;
 }
 
 void sim_pause(void)
@@ -176,6 +243,8 @@ void display_init(void)
 
 void display_hndlr(void)
 {
+    assert(win_width == 2*win_height);
+
     // call the pane manger; 
     // - this will not return except when it is time to terminate the program
     sdl_pane_manager(
@@ -183,11 +252,24 @@ void display_hndlr(void)
         NULL,           // called prior to pane handlers
         NULL,           // called after pane handlers
         20000,          // 0=continuous, -1=never, else us
-        1,              // number of pane handler varargs that follow
+        5,              // number of pane handler varargs that follow
         main_pane_hndlr, NULL,
-            0, 0, win_height, win_height,
+            0, 0, win_width/2, win_height,
+            PANE_BORDER_STYLE_MINIMAL,
+        graph_pane_hndlr, (void*)0,
+            win_width/2, 0*win_height/4,  win_width/2, win_height/4,
+            PANE_BORDER_STYLE_MINIMAL,
+        graph_pane_hndlr, (void*)1,
+            win_width/2, 1*win_height/4,  win_width/2, win_height/4,
+            PANE_BORDER_STYLE_MINIMAL,
+        graph_pane_hndlr, (void*)2,
+            win_width/2, 2*win_height/4,  win_width/2, win_height/4,
+            PANE_BORDER_STYLE_MINIMAL,
+        graph_pane_hndlr, (void*)3,
+            win_width/2, 3*win_height/4,  win_width/2, win_height/4,
             PANE_BORDER_STYLE_MINIMAL
         );
+
 }
 
 int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event)
@@ -209,7 +291,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
 
     if (request == PANE_HANDLER_REQ_INITIALIZE) {
         vars = pane_cx->vars = calloc(1,sizeof(*vars));
-        INFO("PANE x,y,w,h  %d %d %d %d\n",
+        INFO("MAIN_PANE x,y,w,h  %d %d %d %d\n",
             pane->x, pane->y, pane->w, pane->h);
 
         assert(pane->w == pane->h);
@@ -301,6 +383,120 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             disp_width += dy;
             // xxx clip
             if (disp_width < 1) disp_width = 1;
+            break;
+        default: 
+            break;
+        }
+
+        return PANE_HANDLER_RET_DISPLAY_REDRAW;
+    }
+
+    // ---------------------------
+    // -------- TERMINATE --------
+    // ---------------------------
+
+    if (request == PANE_HANDLER_REQ_TERMINATE) {
+        free(vars);
+        return PANE_HANDLER_RET_NO_ACTION;
+    }
+
+    // not reached
+    assert(0);
+    return PANE_HANDLER_RET_NO_ACTION;
+}
+
+// xxx simplify
+int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event)
+{
+    struct {
+        int graph_idx;
+    } * vars = pane_cx->vars;
+    rect_t * pane = &pane_cx->pane;
+
+    #define SDL_EVENT_XXX    (SDL_EVENT_USER_DEFINED + 0)
+
+    // ----------------------------
+    // -------- INITIALIZE --------
+    // ----------------------------
+
+    if (request == PANE_HANDLER_REQ_INITIALIZE) {
+        vars = pane_cx->vars = calloc(1,sizeof(*vars));
+        vars->graph_idx = (long)init_params;
+
+        INFO("GRAPH_PANE_%d x,y,w,h  %d %d %d %d\n",
+            vars->graph_idx,
+            pane->x, pane->y, pane->w, pane->h);
+
+        return PANE_HANDLER_RET_NO_ACTION;
+    }
+
+    // ------------------------
+    // -------- RENDER --------
+    // ------------------------
+
+    if (request == PANE_HANDLER_REQ_RENDER) {
+        graph_t *g = &graph[vars->graph_idx];
+        int      n = 0;
+        point_t  points[MAX_GRAPH_POINTS];
+        int      last_i = -1;
+
+        for (int i = 0; i < MAX_GRAPH_POINTS; i++) {
+            double yval = g->y[i];
+            if (yval == 0) continue;
+
+            last_i = i;
+
+            points[n].x = ((double)i / MAX_GRAPH_POINTS) * pane->w;
+            points[n].y = (pane->h - 1) -
+                          ((yval / g->max_yval) * pane->h);
+            n++;
+        }
+
+        // xxx assert
+        if (last_i == -1) {
+            return PANE_HANDLER_RET_NO_ACTION;
+        }
+
+        double t = last_i * (t_done / MAX_GRAPH_POINTS);
+        if (t == 0) {
+            t = .00038;
+        }
+        int t_precision = (t < .001 ? 6 : t < 1 ? 3 : 1);
+        sdl_render_printf(
+              pane, COL2X(3,FONT_SZ), 0, FONT_SZ,
+              SDL_WHITE, SDL_BLACK, 
+              "%s %0.*f%s - T %0.*f BYR - YMAX %0.*f%s",
+              g->title, g->precision, g->y[last_i], g->units,
+              t_precision, t,
+              g->precision, g->max_yval, g->units);
+
+        sdl_render_points(pane, points, n, SDL_WHITE, 1);
+
+
+#if 0
+            sdl_render_printf(pane, COL2X(10,FONT_SZ), 0, FONT_SZ,
+              SDL_WHITE, SDL_BLACK, 
+              "%s = %0.3f %s  Y_MAX = %0.3f %s",
+              title, yval, units, max_yval, units);
+#endif
+
+//  TEMP=1500 K - T=12.800 BYR - YMAX=100 K
+//  TEMPERATURE 1500 K - T 11 BYR -   YMAX = 100 K
+        //int idx = (t / t_done) * MAX_GRAPH_POINTS;
+
+        // xxx try points
+        //sdl_render_lines(pane, points, n, SDL_WHITE);
+
+        return PANE_HANDLER_RET_NO_ACTION;
+    }
+
+    // -----------------------
+    // -------- EVENT --------
+    // -----------------------
+
+    if (request == PANE_HANDLER_REQ_EVENT) {
+        switch (event->event_id) {
+        case SDL_EVENT_XXX:
             break;
         default: 
             break;

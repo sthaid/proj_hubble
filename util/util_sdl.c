@@ -1584,7 +1584,7 @@ void sdl_render_circle(rect_t * pane, int32_t x_center, int32_t y_center, int32_
     }
 
     // validate radius
-    if (radius <= 0) {
+    if (radius < 0) {
         ERROR("radius = %d\n", radius);
         return;
     }
