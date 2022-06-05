@@ -182,7 +182,7 @@ void display_hndlr(void)
         NULL,           // context
         NULL,           // called prior to pane handlers
         NULL,           // called after pane handlers
-        100000,         // 0=continuous, -1=never, else us
+        20000,          // 0=continuous, -1=never, else us
         1,              // number of pane handler varargs that follow
         main_pane_hndlr, NULL,
             0, 0, win_height, win_height,
@@ -230,10 +230,16 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         double temperature = TEMPERATURE(t);
         char *ctrl_str;
 
+#if 0
         yidx = 50 + temperature * ((255. - 50) / 3000);
+#else
+        yidx = log(temperature) * (255. / 8.);
+#endif
         if (yidx < 0) yidx = 0;
         if (yidx > 255) yidx = 255;
         sdl_render_fill_rect(pane, &(rect_t){0,0,pane->w, pane->h}, yellow[yidx]);
+
+        sdl_render_point(pane, pane->w/2, pane->h/2, SDL_LIGHT_BLUE, 8);
 
         for (int deg = 0; deg < 360; deg += 45) {
             int x,y;
@@ -241,14 +247,14 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             x = pane->w/2 + d * (pane->w / disp_width) * cos(DEG2RAD(deg));
             y = pane->h/2 + d * (pane->h / disp_width) * sin(DEG2RAD(deg));
 
-            sdl_render_point(pane, x, y, SDL_BLUE, 5);
+            sdl_render_point(pane, x, y, SDL_BLUE, 3);
         }
 
         double d_cmb_orig = -d_start * (get_sf(t) / get_sf(.00038));
         sdl_render_circle(pane, 
             pane->w / 2, pane->h / 2,
             d_cmb_orig * (pane->w / disp_width),
-            10, SDL_BLUE);
+            5, SDL_BLUE);
 
 
         ctrl_str = (state == STOPPED && t == .00038 ? "RUN"    :

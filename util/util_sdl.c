@@ -1583,6 +1583,12 @@ void sdl_render_circle(rect_t * pane, int32_t x_center, int32_t y_center, int32_
         first_call = false;
     }
 
+    // validate radius
+    if (radius <= 0) {
+        ERROR("radius = %d\n", radius);
+        return;
+    }
+
     // set the color
     set_color(color);
 
