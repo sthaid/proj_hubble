@@ -1,7 +1,12 @@
-// XXX
+// xxx
 // - keys for pause and continue and reset
 // - seperate reset button
 // - main pain prints
+// - comments
+// - review
+// - README
+// - macro for d_cmb_orig,  and call it D_ORIGIN
+
 #include <common.h>
 #include <util_sdl.h>
 
@@ -20,6 +25,8 @@
 #define DEG2RAD(deg)  ((deg) * (M_PI / 180))
 
 #define MAX_GRAPH_POINTS 1000
+
+#define TEMPERATURE(_t)  (3000. * (get_sf(.00038) / get_sf(_t)))
 
 //
 // typdedefs
@@ -91,8 +98,6 @@ void cmb_sim_init(void)
     pthread_create(&tid, NULL, cmb_sim_thread, NULL);
 }
 
-#define TEMPERATURE(_t)  (3000. * (get_sf(.00038) / get_sf(_t)))
-
 void * cmb_sim_thread(void *cx)
 {
     double d_si, t_si, h_si;
@@ -104,6 +109,7 @@ void * cmb_sim_thread(void *cx)
         }
 
         if (d == d_start) {
+            // xxx macro for this
             double d_cmb_origin = d_start * get_sf(t) / get_sf(.000380);
             printf("START t=%f  d_photon=%f  d_cmb_origin=%f  temperature=%f\n", t, d, d_cmb_origin, TEMPERATURE(t));
         }
@@ -138,9 +144,6 @@ void * cmb_sim_thread(void *cx)
             printf("DONE t=%f  d_photon=%f  d_cmb_origin=%f  temperature=%f\n", t, d, d_cmb_origin, TEMPERATURE(t));
             continue;
         }
-
-
-
 
         // delay to adjust rate xxx 
         static int count1;
@@ -189,14 +192,14 @@ void sim_reset(void)
 
     g = &graph[2];
     g->max_yval  = 8;  //xxx
-    g->title     = "D_PHOTON";  // xxx name
+    g->title     = "PHOTON";
     g->units     = " BLYR";
     g->precision = 3;
     g->y[0]      = -d_start;
 
     g = &graph[3];
     g->max_yval  = 50;  //xxx
-    g->title     = "D_CMB_ORIGIN";  // xxx name
+    g->title     = "ORIGIN";
     g->units     = " BLYR";
     g->precision = 3;
     double d_cmb_orig = -d_start * (get_sf(t) / get_sf(.00038));  //xxx
@@ -413,7 +416,7 @@ int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_e
     } * vars = pane_cx->vars;
     rect_t * pane = &pane_cx->pane;
 
-    #define SDL_EVENT_XXX    (SDL_EVENT_USER_DEFINED + 0)
+    #define SDL_EVENT_xxx    (SDL_EVENT_USER_DEFINED + 0)
 
     // ----------------------------
     // -------- INITIALIZE --------
@@ -496,7 +499,7 @@ int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_e
 
     if (request == PANE_HANDLER_REQ_EVENT) {
         switch (event->event_id) {
-        case SDL_EVENT_XXX:
+        case SDL_EVENT_xxx:
             break;
         default: 
             break;
