@@ -1,7 +1,5 @@
 // xxx
 // - keys for pause and continue and reset
-// - seperate reset button
-// - main pain prints
 // - comments
 // - review
 // - README
@@ -24,8 +22,6 @@
 #define DEG2RAD(deg)  ((deg) * (M_PI / 180))
 
 #define MAX_GRAPH_POINTS 1000
-
-//#define TEMPERATURE(_t)  (3000. * (get_sf(.00038) / get_sf(_t)))
 
 //
 // typdedefs
@@ -121,8 +117,8 @@ void * cmb_sim_thread(void *cx)
         d_photon = d_photon_si / M_PER_BLYR;
         t = t_si / S_PER_BYR;
 
-        d_space = d_start * get_sf(t) / get_sf(.000380);  // xxx T_START
-        temperature = (3000. * (get_sf(.00038) / get_sf(t)));  // xxx define for initial temperature
+        d_space = d_start * get_sf(t) / get_sf(T_START);
+        temperature = (3000. * (get_sf(T_START) / get_sf(t)));  // xxx define for initial temperature
 
         int gridx = (t / t_done) * MAX_GRAPH_POINTS;
         if (gridx >= 0 && gridx < MAX_GRAPH_POINTS) {
@@ -139,7 +135,7 @@ void * cmb_sim_thread(void *cx)
             continue;
         }
 
-        // delay to adjust rate xxx 
+        // delay to adjust rate xxx   OR auto adjust based on t_done
         static int count1;
         if (++count1 == 30) {
             usleep(100);
@@ -159,7 +155,7 @@ void sim_reset(void)
     get_diameter(t_done, &d_start);
     d_start = -d_start;  // xxx
 
-    t           = .000380;  // xxx define
+    t           = T_START;
     d_photon    = d_start;
     d_space     = d_start;
     temperature = 3000; // xxx
@@ -173,7 +169,7 @@ void sim_reset(void)
     g->title     = "SCALE_FACTOR";
     g->units     = "";
     g->precision = 3;
-    g->y[0]      = get_sf(.000380);
+    g->y[0]      = get_sf(T_START);
 
     g = &graph[1];
     g->max_yval  = 100;
@@ -191,7 +187,7 @@ void sim_reset(void)
 
     g = &graph[3];
     g->max_yval  = 50;  //xxx
-    g->title     = "ORIGIN";
+    g->title     = "SPACE";
     g->units     = " BLYR";
     g->precision = 3;
     g->y[0]      = d_space;
@@ -226,13 +222,17 @@ void display_init(void)
     win_width  = REQUESTED_WIN_WIDTH;
     win_height = REQUESTED_WIN_HEIGHT;
     if (sdl_init(&win_width, &win_height, fullscreen, resizeable, swap_white_black) < 0) {
-        ERROR("sdl_init %dx%d failed\n", win_width, win_height);
+        printf("ERROR sdl_init %dx%d failed\n", win_width, win_height);
         exit(1);
     }
-    INFO("REQUESTED win_width=%d win_height=%d\n", REQUESTED_WIN_WIDTH, REQUESTED_WIN_HEIGHT);
-    INFO("ACTUAL    win_width=%d win_height=%d\n", win_width, win_height);
+    printf("REQUESTED win_width=%d win_height=%d\n", REQUESTED_WIN_WIDTH, REQUESTED_WIN_HEIGHT);
+    printf("ACTUAL    win_width=%d win_height=%d\n", win_width, win_height);
 
-    // xxx fail if size is wrong
+    // if created window does not have the requested size then exit
+    if (win_width != REQUESTED_WIN_WIDTH || win_height != REQUESTED_WIN_HEIGHT) {
+        printf("ERROR failed to create window with requested size\n");
+        exit(1);
+    }
 }
 
 void display_hndlr(void)
@@ -289,8 +289,8 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
 
     if (request == PANE_HANDLER_REQ_INITIALIZE) {
         vars = pane_cx->vars = calloc(1,sizeof(*vars));
-        INFO("MAIN_PANE x,y,w,h  %d %d %d %d\n",
-            pane->x, pane->y, pane->w, pane->h);
+        printf("MAIN_PANE x,y,w,h  %d %d %d %d\n",
+               pane->x, pane->y, pane->w, pane->h);
 
         for (int i = 0; i < 256; i++) {
             yellow[i] = FIRST_SDL_CUSTOM_COLOR+i;
@@ -338,11 +338,11 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             5, SDL_BLUE);
 
         // display the control string and register the SDL_EVENT_CTRL
-        ctrl_str = (state == STOPPED && t == .00038 ? "RUN"    :
-                    state == STOPPED                ? "RESUME" :
-                    state == RUNNING                ? "PAUSE"  :
-                    state == DONE                   ? "RESET"  :
-                                                      (assert(0), ""));
+        ctrl_str = (state == STOPPED && t == T_START ? "RUN"    :
+                    state == STOPPED                 ? "RESUME" :
+                    state == RUNNING                 ? "PAUSE"  :
+                    state == DONE                    ? "RESET"  :
+                                                       (assert(0), ""));
         sdl_render_text_and_register_event(
             pane, 0, 0, FONT_SZ, ctrl_str, SDL_LIGHT_BLUE, SDL_BLACK, 
             SDL_EVENT_CTRL, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
@@ -361,7 +361,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
 
         // display current state at top middle
         sprintf(state_str, "%s  DISP_WIDTH=%0.*f",\
-            (t == .00038      ? "RESET" :
+            (t == T_START     ? "RESET" :
              state == STOPPED ? "STOPPED" :
              state == RUNNING ? "RUNNING" : 
                                 "DONE"),
@@ -447,7 +447,6 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
     return PANE_HANDLER_RET_NO_ACTION;
 }
 
-// xxx simplify
 int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event)
 {
     struct {
@@ -459,13 +458,14 @@ int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_e
     // -------- INITIALIZE --------
     // ----------------------------
 
+// xxx cleanup this routine
     if (request == PANE_HANDLER_REQ_INITIALIZE) {
         vars = pane_cx->vars = calloc(1,sizeof(*vars));
         vars->graph_idx = (long)init_params;
 
-        INFO("GRAPH_PANE_%d x,y,w,h  %d %d %d %d\n",
-            vars->graph_idx,
-            pane->x, pane->y, pane->w, pane->h);
+        printf("GRAPH_PANE_%d x,y,w,h  %d %d %d %d\n",
+               vars->graph_idx,
+               pane->x, pane->y, pane->w, pane->h);
 
         return PANE_HANDLER_RET_NO_ACTION;
     }
@@ -499,7 +499,7 @@ int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_e
 
         double t = last_i * (t_done / MAX_GRAPH_POINTS);
         if (t == 0) {
-            t = .00038;
+            t = T_START;
         }
         int t_precision = (t < .001 ? 6 : t < 1 ? 3 : 1);
         sdl_render_printf(

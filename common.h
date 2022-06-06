@@ -24,6 +24,7 @@
 
 #define DELTA_T_SECS (10000 * S_PER_YR)  // 10000 years
 
+#define T_START  0.000380
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))  // xxx in misc
 
