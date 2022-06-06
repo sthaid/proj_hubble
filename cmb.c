@@ -5,7 +5,6 @@
 // - comments
 // - review
 // - README
-// - macro for d_cmb_orig,  and call it D_ORIGIN
 
 #include <common.h>
 #include <util_sdl.h>
@@ -14,7 +13,7 @@
 // defines
 //
 
-#define FONT_SZ 20
+#define FONT_SZ 24
 
 #define STATE_STR(s) \
     ((s) == STOPPED ? "STOPPED" : \
@@ -26,7 +25,7 @@
 
 #define MAX_GRAPH_POINTS 1000
 
-#define TEMPERATURE(_t)  (3000. * (get_sf(.00038) / get_sf(_t)))
+//#define TEMPERATURE(_t)  (3000. * (get_sf(.00038) / get_sf(_t)))
 
 //
 // typdedefs
@@ -51,9 +50,12 @@ double disp_width = 93;   // xxx init someplace else
 
 state_t state;
 double  t_done;
-double  d_start;
+
 double  t;
-double  d;
+double  d_start;
+double  d_space;
+double  d_photon;
+double  temperature;
 
 graph_t graph[4];
 
@@ -100,7 +102,7 @@ void cmb_sim_init(void)
 
 void * cmb_sim_thread(void *cx)
 {
-    double d_si, t_si, h_si;
+    double d_photon_si, t_si, h_si;
 
     while (true) {
         // poll for state == RUNNING
@@ -108,40 +110,32 @@ void * cmb_sim_thread(void *cx)
             usleep(10000);
         }
 
-        if (d == d_start) {
-            // xxx macro for this
-            double d_cmb_origin = d_start * get_sf(t) / get_sf(.000380);
-            printf("START t=%f  d_photon=%f  d_cmb_origin=%f  temperature=%f\n", t, d, d_cmb_origin, TEMPERATURE(t));
-        }
-
         // xxx comments
-        d_si = d * M_PER_BLYR;
+        d_photon_si = d_photon * M_PER_BLYR;
         t_si = t * S_PER_BYR;
         h_si = get_hsi(t_si);
         
-        d_si += (c_si + h_si * d_si) * DELTA_T_SECS;
+        d_photon_si += (-c_si + h_si * d_photon_si) * DELTA_T_SECS;
         t_si += DELTA_T_SECS;
 
-        d = d_si / M_PER_BLYR;
+        d_photon = d_photon_si / M_PER_BLYR;
         t = t_si / S_PER_BYR;
 
-        // xxx these distances should be > 0
-        double d_cmb_origin = d_start * get_sf(t) / get_sf(.000380);
+        d_space = d_start * get_sf(t) / get_sf(.000380);  // xxx T_START
+        temperature = (3000. * (get_sf(.00038) / get_sf(t)));  // xxx define for initial temperature
 
-        // xxx   sf, temp, dist
-        int idx = (t / t_done) * MAX_GRAPH_POINTS;
-        if (idx >= 0 && idx < MAX_GRAPH_POINTS) {
-            graph[0].y[idx] = get_sf(t);
-            graph[1].y[idx] = TEMPERATURE(t);
-            graph[2].y[idx] = -d;
-            graph[3].y[idx] = -d_cmb_origin;
+        int gridx = (t / t_done) * MAX_GRAPH_POINTS;
+        if (gridx >= 0 && gridx < MAX_GRAPH_POINTS) {
+            graph[0].y[gridx] = get_sf(t);
+            graph[1].y[gridx] = temperature;
+            graph[2].y[gridx] = d_photon;
+            graph[3].y[gridx] = d_space;
         }
 
         // xxx comments
-        if (d >= 0) {
+        if (d_photon <= 0) {
             state = DONE;
-            //double d_cmb_origin = d_start * get_sf(t) / get_sf(.000380);
-            printf("DONE t=%f  d_photon=%f  d_cmb_origin=%f  temperature=%f\n", t, d, d_cmb_origin, TEMPERATURE(t));
+            d_photon = 0;
             continue;
         }
 
@@ -150,13 +144,6 @@ void * cmb_sim_thread(void *cx)
         if (++count1 == 30) {
             usleep(100);
             count1 = 0;
-        }
-
-        static int count;
-        if (count++ == 100000) {
-            double d_cmb_origin = d_start * get_sf(t) / get_sf(.000380);
-            printf("t=%f  d_photon=%f  d_cmb_origin=%f  temperature=%f\n", t, d, d_cmb_origin, TEMPERATURE(t));
-            count = 0;
         }
     }
 }
@@ -168,9 +155,14 @@ void sim_reset(void)
     state = STOPPED;
 
     t_done = 13.8;  // xxx make adjustable
+
     get_diameter(t_done, &d_start);
-    t = .000380;  // xxx define
-    d = d_start;
+    d_start = -d_start;  // xxx
+
+    t           = .000380;  // xxx define
+    d_photon    = d_start;
+    d_space     = d_start;
+    temperature = 3000; // xxx
 
     for (int i = 0; i < 4; i++) {
         memset(graph[i].y, 0, sizeof(graph[i].y));
@@ -188,22 +180,21 @@ void sim_reset(void)
     g->title     = "TEMP";
     g->units     = " K";
     g->precision = 1;
-    g->y[0]      = TEMPERATURE(.00038);
+    g->y[0]      = temperature;
 
     g = &graph[2];
     g->max_yval  = 8;  //xxx
     g->title     = "PHOTON";
     g->units     = " BLYR";
     g->precision = 3;
-    g->y[0]      = -d_start;
+    g->y[0]      = d_photon;
 
     g = &graph[3];
     g->max_yval  = 50;  //xxx
     g->title     = "ORIGIN";
     g->units     = " BLYR";
     g->precision = 3;
-    double d_cmb_orig = -d_start * (get_sf(t) / get_sf(.00038));  //xxx
-    g->y[0]      = d_cmb_orig;
+    g->y[0]      = d_space;
 }
 
 void sim_pause(void)
@@ -313,8 +304,9 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
 
     if (request == PANE_HANDLER_REQ_RENDER) {
         int yidx;
-        double temperature = TEMPERATURE(t);
         char *ctrl_str;
+        char state_str[100];
+        int len;
 
         // display yellow background, the intensity represents the temperature
         yidx = log(temperature) * (255. / 8.);
@@ -331,18 +323,17 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         // which is away from the observer
         for (int deg = 0; deg < 360; deg += 45) {
             int x,y;
-            x = pane->w/2 + d * (pane->w / disp_width) * cos(DEG2RAD(deg));
-            y = pane->h/2 + d * (pane->h / disp_width) * sin(DEG2RAD(deg));
+            x = pane->w/2 + d_photon * (pane->w / disp_width) * cos(DEG2RAD(deg));
+            y = pane->h/2 + d_photon * (pane->h / disp_width) * sin(DEG2RAD(deg));
             sdl_render_point(pane, x, y, SDL_BLUE, 3);
         }
 
         // display a circle around the observer, representing the current position
         // of the space from which the CMB photons originated
-        double d_cmb_orig = -d_start * (get_sf(t) / get_sf(.00038));
         sdl_render_circle(
             pane, 
             pane->w / 2, pane->h / 2,
-            d_cmb_orig * (pane->w / disp_width),
+            d_space * (pane->w / disp_width),
             5, SDL_BLUE);
 
         // display the control string and register the SDL_EVENT_CTRL
@@ -366,8 +357,6 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             SDL_EVENT_ZOOM, SDL_EVENT_TYPE_MOUSE_WHEEL, pane_cx);
 
         // display current state at top middle
-char state_str[100];
-int len;
         sprintf(state_str, "%s  DISP_WIDTH=%0.*f",\
             STATE_STR(state), 
             disp_width < .001 ? 6 : disp_width < 1 ? 3 : 1,
@@ -382,12 +371,8 @@ int len;
         //   T       nn.nn
         //   TEMP    nn.nn
         //   PHOTON  nn.nn
-        //   ORIGIN  nn.nn
-        //   
-        // xxx tbd
-
-#define PRECISION(x) ((x) < .001 ? 6 : (x) < 1 ? 3 : (x) < 100 ? 1 : 0)
-double temp = TEMPERATURE(t);
+        //   SPACE   nn.nn
+        #define PRECISION(x) ((x) == 0 ? 0 : (x) < .001 ? 6 : (x) < 1 ? 3 : (x) < 100 ? 1 : 0)
         sdl_render_printf(
             pane, 0, ROW2Y(2,FONT_SZ),
             FONT_SZ, SDL_WHITE, SDL_BLACK, "T_DONE %-8.*f",
@@ -399,23 +384,15 @@ double temp = TEMPERATURE(t);
         sdl_render_printf(
             pane, 0, ROW2Y(4,FONT_SZ),
             FONT_SZ, SDL_WHITE, SDL_BLACK, "TEMP   %-8.*f",
-            PRECISION(temp), temp);
+            PRECISION(temperature), temperature);
         sdl_render_printf(
             pane, 0, ROW2Y(5,FONT_SZ),
             FONT_SZ, SDL_WHITE, SDL_BLACK, "PHOTON %-8.*f",
-            PRECISION(-d), -d);
-
-            double d_cmb_origin = d_start * get_sf(t) / get_sf(.000380);
+            PRECISION(d_photon), d_photon);
         sdl_render_printf(
             pane, 0, ROW2Y(6,FONT_SZ),
-            FONT_SZ, SDL_WHITE, SDL_BLACK, "ORIGIN %-8.*f",
-            PRECISION(-d_cmb_origin), -d_cmb_origin);
-
-#if 0
-        sdl_render_printf(pane, 0, ROW2Y(3,FONT_SZ), FONT_SZ, SDL_WHITE, SDL_BLACK, 
-            "TIME=%0.6f  D=%0.6f  TEMP=%0.1f",
-            t, d, temperature);
-#endif
+            FONT_SZ, SDL_WHITE, SDL_BLACK, "SPACE  %-8.*f",
+            PRECISION(d_space), d_space);
 
         return PANE_HANDLER_RET_NO_ACTION;
     }
