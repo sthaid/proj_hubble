@@ -362,7 +362,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         // display current state at top middle
         sprintf(state_str, "%s  DISP_WIDTH=%0.*f",\
             (t == T_START     ? "RESET" :
-             state == STOPPED ? "STOPPED" :
+             state == STOPPED ? "PAUSED" :
              state == RUNNING ? "RUNNING" : 
                                 "DONE"),
             PRECISION(disp_width),
