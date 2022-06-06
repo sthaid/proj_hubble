@@ -277,8 +277,11 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
     #define SDL_EVENT_ZOOM   (SDL_EVENT_USER_DEFINED + 1)
     #define SDL_EVENT_RESET  (SDL_EVENT_USER_DEFINED + 2)
 
+    #define PRECISION(x) ((x) == 0 ? 0 : (x) < .001 ? 6 : (x) < 1 ? 3 : (x) < 100 ? 1 : 0)
+
     static int yellow[256];
-    int i;
+
+    assert(pane->w == pane->h);
 
     // ----------------------------
     // -------- INITIALIZE --------
@@ -289,9 +292,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         INFO("MAIN_PANE x,y,w,h  %d %d %d %d\n",
             pane->x, pane->y, pane->w, pane->h);
 
-        assert(pane->w == pane->h);
-
-        for (i = 0; i < 256; i++) {
+        for (int i = 0; i < 256; i++) {
             yellow[i] = FIRST_SDL_CUSTOM_COLOR+i;
             sdl_define_custom_color(yellow[i], i,i,0);
         }
@@ -347,9 +348,11 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             SDL_EVENT_CTRL, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
 
         // register the SDL_EVENT_RESET, which resets the simulation
-        sdl_render_text_and_register_event(
-            pane, pane->w-COL2X(5,FONT_SZ), 0, FONT_SZ, "RESET", SDL_LIGHT_BLUE, SDL_BLACK, 
-            SDL_EVENT_RESET, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
+        if (state != DONE) {
+            sdl_render_text_and_register_event(
+                pane, pane->w-COL2X(5,FONT_SZ), 0, FONT_SZ, "RESET", SDL_LIGHT_BLUE, SDL_BLACK, 
+                SDL_EVENT_RESET, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
+        }
 
         // register the SDL_EVENT_ZOOM which is used to adjust the 
         // display width scale using the mouse wheel
@@ -358,8 +361,11 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
 
         // display current state at top middle
         sprintf(state_str, "%s  DISP_WIDTH=%0.*f",\
-            STATE_STR(state), 
-            disp_width < .001 ? 6 : disp_width < 1 ? 3 : 1,
+            (t == .00038      ? "RESET" :
+             state == STOPPED ? "STOPPED" :
+             state == RUNNING ? "RUNNING" : 
+                                "DONE"),
+            PRECISION(disp_width),
             disp_width);
         len = strlen(state_str);
         sdl_render_printf(
@@ -372,7 +378,6 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         //   TEMP    nn.nn
         //   PHOTON  nn.nn
         //   SPACE   nn.nn
-        #define PRECISION(x) ((x) == 0 ? 0 : (x) < .001 ? 6 : (x) < 1 ? 3 : (x) < 100 ? 1 : 0)
         sdl_render_printf(
             pane, 0, ROW2Y(2,FONT_SZ),
             FONT_SZ, SDL_WHITE, SDL_BLACK, "T_DONE %-8.*f",
