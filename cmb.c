@@ -282,8 +282,9 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
     } * vars = pane_cx->vars;
     rect_t * pane = &pane_cx->pane;
 
-    #define SDL_EVENT_CTRL       (SDL_EVENT_USER_DEFINED + 0)
-    #define SDL_EVENT_ZOOM       (SDL_EVENT_USER_DEFINED + 1)
+    #define SDL_EVENT_CTRL   (SDL_EVENT_USER_DEFINED + 0)
+    #define SDL_EVENT_ZOOM   (SDL_EVENT_USER_DEFINED + 1)
+    #define SDL_EVENT_RESET  (SDL_EVENT_USER_DEFINED + 2)
 
     static int yellow[256];
     int i;
@@ -315,53 +316,106 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         double temperature = TEMPERATURE(t);
         char *ctrl_str;
 
-#if 0
-        yidx = 50 + temperature * ((255. - 50) / 3000);
-#else
+        // display yellow background, the intensity represents the temperature
         yidx = log(temperature) * (255. / 8.);
-#endif
         if (yidx < 0) yidx = 0;
         if (yidx > 255) yidx = 255;
         sdl_render_fill_rect(pane, &(rect_t){0,0,pane->w, pane->h}, yellow[yidx]);
 
+        // display blue point at center, representing location of the observer
         sdl_render_point(pane, pane->w/2, pane->h/2, SDL_LIGHT_BLUE, 8);
 
+        // display points surrouding the observer; 
+        // these points represent the position of the CMB photons as they move due to
+        // their velocity (c) toward the observer and the expansion of space
+        // which is away from the observer
         for (int deg = 0; deg < 360; deg += 45) {
             int x,y;
-
             x = pane->w/2 + d * (pane->w / disp_width) * cos(DEG2RAD(deg));
             y = pane->h/2 + d * (pane->h / disp_width) * sin(DEG2RAD(deg));
-
             sdl_render_point(pane, x, y, SDL_BLUE, 3);
         }
 
+        // display a circle around the observer, representing the current position
+        // of the space from which the CMB photons originated
         double d_cmb_orig = -d_start * (get_sf(t) / get_sf(.00038));
-        sdl_render_circle(pane, 
+        sdl_render_circle(
+            pane, 
             pane->w / 2, pane->h / 2,
             d_cmb_orig * (pane->w / disp_width),
             5, SDL_BLUE);
 
-
+        // display the control string and register the SDL_EVENT_CTRL
         ctrl_str = (state == STOPPED && t == .00038 ? "RUN"    :
                     state == STOPPED                ? "RESUME" :
                     state == RUNNING                ? "PAUSE"  :
                     state == DONE                   ? "RESET"  :
                                                       (assert(0), ""));
-
         sdl_render_text_and_register_event(
             pane, 0, 0, FONT_SZ, ctrl_str, SDL_LIGHT_BLUE, SDL_BLACK, 
             SDL_EVENT_CTRL, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
 
-        sdl_render_printf(pane, 0, ROW2Y(1,FONT_SZ), FONT_SZ, SDL_WHITE, SDL_BLACK, 
-            "STATE = %s  DISP_WIDTH=%0.6f",  
-            STATE_STR(state), disp_width);
+        // register the SDL_EVENT_RESET, which resets the simulation
+        sdl_render_text_and_register_event(
+            pane, pane->w-COL2X(5,FONT_SZ), 0, FONT_SZ, "RESET", SDL_LIGHT_BLUE, SDL_BLACK, 
+            SDL_EVENT_RESET, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
 
+        // register the SDL_EVENT_ZOOM which is used to adjust the 
+        // display width scale using the mouse wheel
+        sdl_register_event(pane, &(rect_t){0,0,pane->w,pane->h}, 
+            SDL_EVENT_ZOOM, SDL_EVENT_TYPE_MOUSE_WHEEL, pane_cx);
+
+        // display current state at top middle
+char state_str[100];
+int len;
+        sprintf(state_str, "%s  DISP_WIDTH=%0.*f",\
+            STATE_STR(state), 
+            disp_width < .001 ? 6 : disp_width < 1 ? 3 : 1,
+            disp_width);
+        len = strlen(state_str);
+        sdl_render_printf(
+            pane, pane->w/2 - COL2X(len,FONT_SZ/2), 0,
+            FONT_SZ, SDL_WHITE, SDL_BLACK, "%s", state_str);
+
+        // display status
+        //   T_DONE  nn.nn
+        //   T       nn.nn
+        //   TEMP    nn.nn
+        //   PHOTON  nn.nn
+        //   ORIGIN  nn.nn
+        //   
+        // xxx tbd
+
+#define PRECISION(x) ((x) < .001 ? 6 : (x) < 1 ? 3 : (x) < 100 ? 1 : 0)
+double temp = TEMPERATURE(t);
+        sdl_render_printf(
+            pane, 0, ROW2Y(2,FONT_SZ),
+            FONT_SZ, SDL_WHITE, SDL_BLACK, "T_DONE %-8.*f",
+            PRECISION(t_done), t_done);
+        sdl_render_printf(
+            pane, 0, ROW2Y(3,FONT_SZ),
+            FONT_SZ, SDL_WHITE, SDL_BLACK, "T      %-8.*f",
+            PRECISION(t), t);
+        sdl_render_printf(
+            pane, 0, ROW2Y(4,FONT_SZ),
+            FONT_SZ, SDL_WHITE, SDL_BLACK, "TEMP   %-8.*f",
+            PRECISION(temp), temp);
+        sdl_render_printf(
+            pane, 0, ROW2Y(5,FONT_SZ),
+            FONT_SZ, SDL_WHITE, SDL_BLACK, "PHOTON %-8.*f",
+            PRECISION(-d), -d);
+
+            double d_cmb_origin = d_start * get_sf(t) / get_sf(.000380);
+        sdl_render_printf(
+            pane, 0, ROW2Y(6,FONT_SZ),
+            FONT_SZ, SDL_WHITE, SDL_BLACK, "ORIGIN %-8.*f",
+            PRECISION(-d_cmb_origin), -d_cmb_origin);
+
+#if 0
         sdl_render_printf(pane, 0, ROW2Y(3,FONT_SZ), FONT_SZ, SDL_WHITE, SDL_BLACK, 
             "TIME=%0.6f  D=%0.6f  TEMP=%0.1f",
             t, d, temperature);
-
-        sdl_register_event(pane, &(rect_t){0,0,pane->w,pane->h}, 
-            SDL_EVENT_ZOOM, SDL_EVENT_TYPE_MOUSE_WHEEL, pane_cx);
+#endif
 
         return PANE_HANDLER_RET_NO_ACTION;
     }
@@ -380,6 +434,9 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             } else {
                 sim_reset();
             }
+            break;
+        case SDL_EVENT_RESET:
+            sim_reset();
             break;
         case SDL_EVENT_ZOOM: ;
             int dy = event->mouse_wheel.delta_y;
@@ -415,8 +472,6 @@ int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_e
         int graph_idx;
     } * vars = pane_cx->vars;
     rect_t * pane = &pane_cx->pane;
-
-    #define SDL_EVENT_xxx    (SDL_EVENT_USER_DEFINED + 0)
 
     // ----------------------------
     // -------- INITIALIZE --------
@@ -475,21 +530,6 @@ int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_e
 
         sdl_render_points(pane, points, n, SDL_WHITE, 1);
 
-
-#if 0
-            sdl_render_printf(pane, COL2X(10,FONT_SZ), 0, FONT_SZ,
-              SDL_WHITE, SDL_BLACK, 
-              "%s = %0.3f %s  Y_MAX = %0.3f %s",
-              title, yval, units, max_yval, units);
-#endif
-
-//  TEMP=1500 K - T=12.800 BYR - YMAX=100 K
-//  TEMPERATURE 1500 K - T 11 BYR -   YMAX = 100 K
-        //int idx = (t / t_done) * MAX_GRAPH_POINTS;
-
-        // xxx try points
-        //sdl_render_lines(pane, points, n, SDL_WHITE);
-
         return PANE_HANDLER_RET_NO_ACTION;
     }
 
@@ -498,13 +538,6 @@ int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_e
     // -----------------------
 
     if (request == PANE_HANDLER_REQ_EVENT) {
-        switch (event->event_id) {
-        case SDL_EVENT_xxx:
-            break;
-        default: 
-            break;
-        }
-
         return PANE_HANDLER_RET_DISPLAY_REDRAW;
     }
 
