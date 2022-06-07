@@ -210,11 +210,11 @@ static void unit_test(void)
     printf("  age=%10.6f h=%5.1f h_exp=%5.1f\n", 100.0, get_h(100.0), 50.);
 
     printf("diameter test\n");
-    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  13.8, get_diameter(13.8,NULL), 93.);   // wikipedia
-    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  14.9, get_diameter(14.9,NULL), 100.);  // ask-ethan
-    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  24.5, get_diameter(24.5,NULL), 200.);  // ask-ethan
-    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  37.6, get_diameter(37.6,NULL), 400.);  // ask-ethan
-    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  49.8, get_diameter(49.8,NULL), 800.);  // ask-ethan
+    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  13.8, get_diameter(13.8,NULL,NULL), 93.);   // wikipedia
+    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  14.9, get_diameter(14.9,NULL,NULL), 100.);  // ask-ethan
+    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  24.5, get_diameter(24.5,NULL,NULL), 200.);  // ask-ethan
+    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  37.6, get_diameter(37.6,NULL,NULL), 400.);  // ask-ethan
+    printf("  age=%10.6f d=%5.1f d_exp=%5.1f\n",  49.8, get_diameter(49.8,NULL,NULL), 800.);  // ask-ethan
 }
 
 // -----------------  API - GET SCALE FACTOR  -------------------------------
@@ -279,17 +279,19 @@ double get_hsi(double t_sec)
 
 // -----------------  API - GET UNIVERSE DIAMETER  --------------------------
 
-// return diamter of universe in blyr
-double get_diameter(double t_backtrack_start, double *d_backtrack_end_arg)
-{
-    //#define DELTA_T_SECS (1000e-9 * S_PER_BYR)  // 1000 years
+// xxx use positive d
 
-    double t_si, d_si, h_si;
+// return diamter of universe in blyr
+double get_diameter(double t_backtrack_start, double *d_backtrack_end_arg, double *max_photon_distance)
+{
+    double t_si, d_photon_si, h_si;
     double d_backtrack_end, t_backtrack_end, diameter;
+    double max_d_photon_si;
 
     // init
     t_si = t_backtrack_start * S_PER_BYR;  // secs
-    d_si = 0;   // meters
+    d_photon_si = 0;      // meters
+    max_d_photon_si = 0;  // meters
 
     // assume the earth is permanent ...
     // 
@@ -299,23 +301,27 @@ double get_diameter(double t_backtrack_start, double *d_backtrack_end_arg)
     while (true) {
         // xxx comment
         h_si  = get_hsi(t_si - DELTA_T_SECS);
-        d_si = (d_si - c_si * DELTA_T_SECS) / (1 + h_si * DELTA_T_SECS);
+        d_photon_si = (d_photon_si - c_si * DELTA_T_SECS) / (1 + h_si * DELTA_T_SECS);
         t_si -= DELTA_T_SECS;
+
+        if (d_photon_si < max_d_photon_si) {
+            max_d_photon_si = d_photon_si;
+        }
 
         if (t_si < (.00038 * S_PER_BYR + DELTA_T_SECS/2)) {
             break;
         }
 
-        if (d_si >= 0) {
-            printf("ERROR: d_si>=0: d_si=%f h=%f t=%f t_backtrack_start=%f\n", 
-                   d_si, h_si/H_TO_SI, t_si/S_PER_BYR, t_backtrack_start);
+        if (d_photon_si >= 0) {
+            printf("ERROR: d_photon_si>=0: d_photon_si=%f h=%f t=%f t_backtrack_start=%f\n", 
+                   d_photon_si, h_si/H_TO_SI, t_si/S_PER_BYR, t_backtrack_start);
             exit(1);
         }
     }
 
     // converrt the distance of the photon from earth to blyr units;
     // convert the time the backtrack ended to byr units (should be close to .00038 byr)
-    d_backtrack_end = d_si / M_PER_BLYR;
+    d_backtrack_end = d_photon_si / M_PER_BLYR;
     t_backtrack_end = t_si / S_PER_BYR;
 
     // x is now the distance from the earth to the photon at t=.00038 byr.
@@ -337,7 +343,11 @@ double get_diameter(double t_backtrack_start, double *d_backtrack_end_arg)
 
     // xxx
     if (d_backtrack_end_arg) {
-        *d_backtrack_end_arg = d_backtrack_end;
+        *d_backtrack_end_arg = -d_backtrack_end;
+    }
+
+    if (max_photon_distance) {
+        *max_photon_distance = -max_d_photon_si / M_PER_BLYR;
     }
 
     // return result

@@ -3,6 +3,7 @@
 // - comments
 // - review
 // - README
+// - vertical drag to adjust size
 
 #include <common.h>
 #include <util_sdl.h>
@@ -99,6 +100,7 @@ void cmb_sim_init(void)
 void * cmb_sim_thread(void *cx)
 {
     double d_photon_si, t_si, h_si;
+    int count = 0;
 
     while (true) {
         // poll for state == RUNNING
@@ -135,11 +137,10 @@ void * cmb_sim_thread(void *cx)
             continue;
         }
 
-        // delay to adjust rate xxx   OR auto adjust based on t_done
-        static int count1;
-        if (++count1 == 30) {
-            usleep(100);
-            count1 = 0;
+        // delay to complete simulation in about 10 seconds
+        if (++count >= (150 * (t_done / 13.8))) {
+            usleep(1000);
+            count = 0;
         }
     }
 }
@@ -147,18 +148,22 @@ void * cmb_sim_thread(void *cx)
 void sim_reset(void)
 {
     graph_t *g;
+    double diameter, initial_distance, max_photon_distance;
 
     state = STOPPED;
 
-    t_done = 13.8;  // xxx make adjustable
+    //t_done = 13.8;  // xxx make adjustable
+    t_done = 50.;  // xxx make adjustable
 
-    get_diameter(t_done, &d_start);
-    d_start = -d_start;  // xxx
+    diameter = get_diameter(t_done, &initial_distance, &max_photon_distance);
 
-    t           = T_START;
-    d_photon    = d_start;
-    d_space     = d_start;
-    temperature = 3000; // xxx
+    d_start      = initial_distance;
+    t            = T_START;
+    d_photon     = initial_distance;
+    d_space      = initial_distance;
+    temperature  = 3000; // xxx
+
+    disp_width = diameter;
 
     for (int i = 0; i < 4; i++) {
         memset(graph[i].y, 0, sizeof(graph[i].y));
@@ -179,14 +184,14 @@ void sim_reset(void)
     g->y[0]      = temperature;
 
     g = &graph[2];
-    g->max_yval  = 8;  //xxx
+    g->max_yval  = max_photon_distance;
     g->title     = "PHOTON";
     g->units     = " BLYR";
     g->precision = 3;
     g->y[0]      = d_photon;
 
     g = &graph[3];
-    g->max_yval  = 50;  //xxx
+    g->max_yval  = diameter/2;
     g->title     = "SPACE";
     g->units     = " BLYR";
     g->precision = 3;
@@ -488,7 +493,7 @@ int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_e
 
             points[n].x = ((double)i / MAX_GRAPH_POINTS) * pane->w;
             points[n].y = (pane->h - 1) -
-                          ((yval / g->max_yval) * pane->h);
+                          ((yval / g->max_yval) * (0.85 * pane->h));
             n++;
         }
 

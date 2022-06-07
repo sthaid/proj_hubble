@@ -33,6 +33,6 @@ void sf_init(void);
 double get_sf(double t);
 double get_h(double t);
 double get_hsi(double t_sec);
-double get_diameter(double t_backtrack_start, double *d_backtrack_end);
+double get_diameter(double t_backtrack_start, double *d_backtrack_end, double *max_photon_distance);
 
 #endif
