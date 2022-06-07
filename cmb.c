@@ -44,10 +44,10 @@ typedef struct {
 //
 
 int win_width, win_height;
-double disp_width = 93;   // xxx init someplace else
+double disp_width;
 
 state_t state;
-double  t_done;
+double  t_done = 13.8;  // xxx define
 
 double  t;
 double  d_start;
@@ -154,7 +154,7 @@ void sim_reset(void)
     state = RESET;
 
     //t_done = 13.8;  // xxx make adjustable
-    t_done = 50.;  // xxx make adjustable
+    //t_done = 50.;  // xxx make adjustable
 
     diameter = get_diameter(t_done, &initial_distance, &max_photon_distance);
 
@@ -178,7 +178,7 @@ void sim_reset(void)
     g->y[0]      = get_sf(T_START);
 
     g = &graph[1];
-    g->max_yval  = 100;
+    g->max_yval  = 1000;
     g->title     = "TEMP";
     g->units     = " K";
     g->precision = 1;
@@ -411,6 +411,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         switch (event->event_id) {
         case SDL_EVENT_CTRL:
             if (state == RESET || state == PAUSED) {
+                if (state == RESET) sim_reset();  // xxx temp
                 sim_resume();
             } else if (state == RUNNING) {
                 sim_pause();
@@ -426,6 +427,23 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             disp_width += dy;
             // xxx clip
             if (disp_width < 1) disp_width = 1;
+            break;
+        case SDL_EVENT_KEY_UP_ARROW:
+        case SDL_EVENT_KEY_DOWN_ARROW:
+            if (state == RESET) {
+                double delta;
+                double e = 1e-6;
+                delta = (t_done < .001-e ? 0.0001 :
+                         t_done < .01-e  ? 0.001  :
+                         t_done < .1-e   ? 0.01   :
+                         t_done < 15-e   ? 0.1    :
+                                            1.);
+                t_done = t_done + (event->event_id == SDL_EVENT_KEY_UP_ARROW ? delta : -delta);
+                if (t_done < .1+e) {
+                    t_done = .1;
+                }
+                //xxx sim_reset();
+            }
             break;
         default: 
             break;
