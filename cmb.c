@@ -14,21 +14,22 @@
 
 #define FONT_SZ 24
 
-#define STATE_STR(s) \
-    ((s) == STOPPED ? "STOPPED" : \
-     (s) == RUNNING ? "RUNNING" : \
-     (s) == DONE    ? "DONE"    : \
-                      (assert(0),""))
-
 #define DEG2RAD(deg)  ((deg) * (M_PI / 180))
 
 #define MAX_GRAPH_POINTS 1000
+
+#define STATE_STR(x) \
+    ((x) == RESET   ? "RESET"   : \
+     (x) == RUNNING ? "RUNNING" : \
+     (x) == PAUSED  ? "PAUSED"  : \
+     (x) == DONE    ? "DONE"    : \
+                      (assert(0),""))
 
 //
 // typdedefs
 // 
 
-typedef enum {STOPPED, RUNNING, DONE} state_t;
+typedef enum {RESET, RUNNING, PAUSED, DONE} state_t;
 
 typedef struct {
     char *title;
@@ -150,7 +151,7 @@ void sim_reset(void)
     graph_t *g;
     double diameter, initial_distance, max_photon_distance;
 
-    state = STOPPED;
+    state = RESET;
 
     //t_done = 13.8;  // xxx make adjustable
     t_done = 50.;  // xxx make adjustable
@@ -201,13 +202,13 @@ void sim_reset(void)
 void sim_pause(void)
 {
     if (state == RUNNING) {
-        state = STOPPED;
+        state = PAUSED;
     }
 }
 
 void sim_resume(void)
 {
-    if (state == STOPPED) {
+    if (state == RESET || state == PAUSED) {
         state = RUNNING;
     }
 }
@@ -311,7 +312,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
     if (request == PANE_HANDLER_REQ_RENDER) {
         int yidx;
         char *ctrl_str;
-        char state_str[100];
+        char title_str[100];
         int len;
 
         // display yellow background, the intensity represents the temperature
@@ -343,11 +344,11 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             5, SDL_BLUE);
 
         // display the control string and register the SDL_EVENT_CTRL
-        ctrl_str = (state == STOPPED && t == T_START ? "RUN"    :
-                    state == STOPPED                 ? "RESUME" :
-                    state == RUNNING                 ? "PAUSE"  :
-                    state == DONE                    ? "RESET"  :
-                                                       (assert(0), ""));
+        ctrl_str = (state == RESET    ? "RUN"    :
+                    state == PAUSED   ? "RESUME" :
+                    state == RUNNING  ? "PAUSE"  :
+                    state == DONE     ? "RESET"  :
+                                        (assert(0), ""));
         sdl_render_text_and_register_event(
             pane, 0, 0, FONT_SZ, ctrl_str, SDL_LIGHT_BLUE, SDL_BLACK, 
             SDL_EVENT_CTRL, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
@@ -365,17 +366,12 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             SDL_EVENT_ZOOM, SDL_EVENT_TYPE_MOUSE_WHEEL, pane_cx);
 
         // display current state at top middle
-        sprintf(state_str, "%s  DISP_WIDTH=%0.*f",\
-            (t == T_START     ? "RESET" :
-             state == STOPPED ? "PAUSED" :
-             state == RUNNING ? "RUNNING" : 
-                                "DONE"),
-            PRECISION(disp_width),
-            disp_width);
-        len = strlen(state_str);
+        sprintf(title_str, "%s  DISP_WIDTH=%0.*f",\
+            STATE_STR(state), PRECISION(disp_width), disp_width);
+        len = strlen(title_str);
         sdl_render_printf(
             pane, pane->w/2 - COL2X(len,FONT_SZ/2), 0,
-            FONT_SZ, SDL_WHITE, SDL_BLACK, "%s", state_str);
+            FONT_SZ, SDL_WHITE, SDL_BLACK, "%s", title_str);
 
         // display status
         //   T_DONE  nn.nn
@@ -414,7 +410,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
     if (request == PANE_HANDLER_REQ_EVENT) {
         switch (event->event_id) {
         case SDL_EVENT_CTRL:
-            if (state == STOPPED) {
+            if (state == RESET || state == PAUSED) {
                 sim_resume();
             } else if (state == RUNNING) {
                 sim_pause();
