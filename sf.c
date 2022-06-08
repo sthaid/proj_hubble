@@ -52,7 +52,7 @@
 //     3:  19.6 to infinity    exp(H*(T-19.6) + ln(a(19.6)))
 // 
 // When plotting this scale-factor it is evident that there is a discontinuity
-// in the slope at t=9.8. To resolve this, range 1 and range 2 are connected using
+// in the slope at t=9.8. To resolve this, range 1 and range 2 are smoothely connected using
 // a line segment and an arc of a circle, starting at T=6.3 and ending at T=12.6.
 // These time values were emperically determined to yield smooth graphs of the scale 
 // factor and hubble constant vs time.
@@ -100,6 +100,9 @@ static double sf_tbl[20000];
 // these constants are used to calculate the sf for range .000380 to 9.8 byr;
 // the matter dominated era
 static double k1m, k2m;
+
+// used to enable unit testing of this file
+static const bool run_unit_test = false;
 
 //
 // prototypes
@@ -159,9 +162,13 @@ void sf_init(void)
     join_init(&l1, &l2);
 
     // init is complete, perform unit test
-    //unit_test();
+    if (run_unit_test) {
+        unit_test();
+        exit(1);
+    }
 }
 
+// this routine is only used by the above sf_init routine
 static double sf_init_get_h(double t)
 {
     // note that the first 2 values are adjusted to compensate for the
@@ -219,6 +226,7 @@ static void unit_test(void)
 
 // -----------------  API - GET SCALE FACTOR  -------------------------------
 
+// returns scale factor, arg t units BYR
 double get_sf(double t)
 {
     double a;
@@ -247,6 +255,17 @@ double get_sf(double t)
 }
 
 // -----------------  API - GET HUBBLE PARAMETER  ---------------------------
+
+// The Hubble Parameter is the value of the Hubble Constant at universe age of t.
+// Units of t are BYR.
+//
+//                     da / dt
+// Hubble Parameter = ---------
+//                       a
+//
+// get_h return value units: km/sec/megaparsec
+//
+// get_h return value units: /sec
 
 double get_h(double t)
 {
@@ -279,9 +298,29 @@ double get_hsi(double t_sec)
 
 // -----------------  API - GET UNIVERSE DIAMETER  --------------------------
 
-// xxx use positive d
+// This desciption assumes a hypothetical Earth that is permanently at a fixed location
+// in space, over the time interval from the big bang to the end of the universe.
+//
+// This routine determines the distance of a photon from earth going backward in time.
+// The photon has arrived at earth at 't_backtrack_start', and thus it's distance from
+// earth at 't_backtrack_start' is 0.
+//
+// Its position is evaluated as time decrements by DELTA_T_SECS, until time becomes .000380 BLYR
+// (the time that the universe became transparent and CMB was released). This final position is
+// 'd_backtrack_end'.
+//
+// The function return value is the diameter of the universe in BLYR, at time t_backtrack_start.
+// This is determined by multiplying the distance of the photon from the hypothetical 
+// permanent earth at time .00038 BYR (d_backtrack_end) by how much the universe has expanded
+// from time .00038 to t_backtrack_start.
+// 
+// Returns 
+// - value: diameter of universe in BLYR
+// - d_backtrack_end: distance of the photon from the permanent earh location,
+//    at time .00038 BYR
+// - max_photon_distance: the maximum distance of the photon from the earth during 
+//    the time interval t_backtrack_start down to .00038 BYR.
 
-// return diamter of universe in blyr
 double get_diameter(double t_backtrack_start, double *d_backtrack_end_arg, double *max_photon_distance)
 {
     double t_si, d_photon_si, h_si;
@@ -299,12 +338,11 @@ double get_diameter(double t_backtrack_start, double *d_backtrack_end_arg, doubl
     // at distance 0 from earth, calculate the distance of the photon from earth
     // going back in time to .00038 byrs (time of the CMB that we now observe)
     while (true) {
-        // xxx comment
         h_si  = get_hsi(t_si - DELTA_T_SECS);
-        d_photon_si = (d_photon_si - c_si * DELTA_T_SECS) / (1 + h_si * DELTA_T_SECS);
+        d_photon_si = (d_photon_si + c_si * DELTA_T_SECS) / (1 + h_si * DELTA_T_SECS);
         t_si -= DELTA_T_SECS;
 
-        if (d_photon_si < max_d_photon_si) {
+        if (d_photon_si > max_d_photon_si) {
             max_d_photon_si = d_photon_si;
         }
 
@@ -312,7 +350,7 @@ double get_diameter(double t_backtrack_start, double *d_backtrack_end_arg, doubl
             break;
         }
 
-        if (d_photon_si >= 0) {
+        if (d_photon_si < 0) {
             printf("ERROR: d_photon_si>=0: d_photon_si=%f h=%f t=%f t_backtrack_start=%f\n", 
                    d_photon_si, h_si/H_TO_SI, t_si/S_PER_BYR, t_backtrack_start);
             exit(1);
@@ -324,11 +362,9 @@ double get_diameter(double t_backtrack_start, double *d_backtrack_end_arg, doubl
     d_backtrack_end = d_photon_si / M_PER_BLYR;
     t_backtrack_end = t_si / S_PER_BYR;
 
-    // x is now the distance from the earth to the photon at t=.00038 byr.
-    // This is the distance where the CMB that is observed now originated.
     // The radius of the universe now, is where that spot in space where the
-    // CMB originated, is now. And the diameter is twice that.
-    diameter = -d_backtrack_end *
+    // CMB originated, is now located. And the diameter is twice radius
+    diameter = d_backtrack_end *
                (get_sf(t_backtrack_start) / get_sf(t_backtrack_end)) *
                2;
 
@@ -341,13 +377,12 @@ double get_diameter(double t_backtrack_start, double *d_backtrack_end_arg, doubl
     printf("diameter             = %f\n", diameter);
 #endif
 
-    // xxx
+    // return additional values to caller
     if (d_backtrack_end_arg) {
-        *d_backtrack_end_arg = -d_backtrack_end;
+        *d_backtrack_end_arg = d_backtrack_end;
     }
-
     if (max_photon_distance) {
-        *max_photon_distance = -max_d_photon_si / M_PER_BLYR;
+        *max_photon_distance = max_d_photon_si / M_PER_BLYR;
     }
 
     // return result
@@ -356,7 +391,16 @@ double get_diameter(double t_backtrack_start, double *d_backtrack_end_arg, doubl
 
 // -----------------  SUPPORT - JOIN 2 LINES SMOOTHLY  -----------------------
 
-// xxx description, and review comments throughout
+// The 2 lines being joined are each specified as a point and an angle.
+//
+// These points are smoothly connected (without a discontinuity in the slope),
+// by connecting with a line segment and a arc of a circle.
+//
+// Only some pairs of lines can be joined using this technique.
+// The caller must supply 2 lines that can be joined.
+//
+// Join_init determines the location of the line segment and circle arc.
+// Joing_get_y is the function that returns the smooth joined y value.
 
 static double   x_start, x_end;
 static point_t  circle_p;

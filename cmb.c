@@ -153,9 +153,6 @@ void sim_reset(void)
 
     state = RESET;
 
-    //t_done = 13.8;  // xxx make adjustable
-    //t_done = 50.;  // xxx make adjustable
-
     diameter = get_diameter(t_done, &initial_distance, &max_photon_distance);
 
     d_start      = initial_distance;
