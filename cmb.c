@@ -109,7 +109,6 @@ void * cmb_sim_thread(void *cx)
             usleep(10000);
         }
 
-        // xxx comments
         d_photon_si = d_photon * M_PER_BLYR;
         t_si = t * S_PER_BYR;
         h_si = get_hsi(t_si);
@@ -121,7 +120,7 @@ void * cmb_sim_thread(void *cx)
         t = t_si / S_PER_BYR;
 
         d_space = d_start * get_sf(t) / get_sf(T_START);
-        temperature = (3000. * (get_sf(T_START) / get_sf(t)));  // xxx define for initial temperature
+        temperature = (TEMP_START * (get_sf(T_START) / get_sf(t)));
 
         int gridx = (t / t_done) * MAX_GRAPH_POINTS;
         if (gridx >= 0 && gridx < MAX_GRAPH_POINTS) {
@@ -159,7 +158,7 @@ void sim_reset(void)
     t            = T_START;
     d_photon     = initial_distance;
     d_space      = initial_distance;
-    temperature  = 3000; // xxx
+    temperature  = TEMP_START;
 
     disp_width = diameter;
 
@@ -250,9 +249,6 @@ void display_hndlr(void)
         NULL,           // called after pane handlers
         20000,          // 0=continuous, -1=never, else us
         5,              // number of pane handler varargs that follow
-        main_pane_hndlr, NULL,
-            0, 0, win_width/2, win_height,
-            PANE_BORDER_STYLE_MINIMAL,
         graph_pane_hndlr, (void*)0,
             win_width/2, 0*win_height/4,  win_width/2, win_height/4,
             PANE_BORDER_STYLE_MINIMAL,
@@ -264,6 +260,9 @@ void display_hndlr(void)
             PANE_BORDER_STYLE_MINIMAL,
         graph_pane_hndlr, (void*)3,
             win_width/2, 3*win_height/4,  win_width/2, win_height/4,
+            PANE_BORDER_STYLE_MINIMAL,
+        main_pane_hndlr, NULL,
+            0, 0, win_width/2, win_height,
             PANE_BORDER_STYLE_MINIMAL
         );
 
@@ -408,7 +407,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         switch (event->event_id) {
         case SDL_EVENT_CTRL:
             if (state == RESET || state == PAUSED) {
-                if (state == RESET) sim_reset();  // xxx temp
+                if (state == RESET) sim_reset();  // xxx temporary
                 sim_resume();
             } else if (state == RUNNING) {
                 sim_pause();
@@ -420,10 +419,25 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             sim_reset();
             break;
         case SDL_EVENT_ZOOM: ;
-            int dy = event->mouse_wheel.delta_y;
+            double dy = -event->mouse_wheel.delta_y;
+            if (dy == 0) break;
+            if (dy < 0 && disp_width <= 1) dy = -.01;
+            if (dy > 0 && disp_width < 1) dy = +.01;
             disp_width += dy;
-            // xxx clip
-            if (disp_width < 1) disp_width = 1;
+            if (dy == 1) disp_width = floor(disp_width);
+            if (dy == -1) disp_width = ceil(disp_width);
+            if (disp_width < .01) disp_width = .01;
+            break;
+        case SDL_EVENT_KEY_LEFT_ARROW:
+        case SDL_EVENT_KEY_RIGHT_ARROW:
+            if (event->event_id == SDL_EVENT_KEY_LEFT_ARROW) {
+                disp_width -= 10;
+                disp_width = 10*ceil(disp_width/10);
+                if (disp_width < 10) disp_width = 10;
+            } else {
+                disp_width += 10;
+                disp_width = 10*floor(disp_width/10);
+            }
             break;
         case SDL_EVENT_KEY_UP_ARROW:
         case SDL_EVENT_KEY_DOWN_ARROW:
@@ -474,7 +488,6 @@ int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_e
     // -------- INITIALIZE --------
     // ----------------------------
 
-// xxx cleanup this routine
     if (request == PANE_HANDLER_REQ_INITIALIZE) {
         vars = pane_cx->vars = calloc(1,sizeof(*vars));
         vars->graph_idx = (long)init_params;
@@ -496,6 +509,7 @@ int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_e
         point_t  points[MAX_GRAPH_POINTS];
         int      last_i = -1;
 
+        // create the array of graph points that are to be displayed
         for (int i = 0; i < MAX_GRAPH_POINTS; i++) {
             double yval = g->y[i];
             if (yval == 0) continue;
@@ -508,15 +522,18 @@ int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_e
             n++;
         }
 
-        // xxx assert
+        // if there are no graph points to display then return
         if (last_i == -1) {
             return PANE_HANDLER_RET_NO_ACTION;
         }
 
+        // determine the time of the last graph point
         double t = last_i * (t_done / MAX_GRAPH_POINTS);
         if (t == 0) {
             t = T_START;
         }
+
+        // display the title line
         int t_precision = (t < .001 ? 6 : t < 1 ? 3 : 1);
         sdl_render_printf(
               pane, COL2X(3,FONT_SZ), 0, FONT_SZ,
@@ -526,6 +543,7 @@ int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_e
               t_precision, t,
               g->precision, g->max_yval, g->units);
 
+        // display the points
         sdl_render_points(pane, points, n, SDL_WHITE, 1);
 
         return PANE_HANDLER_RET_NO_ACTION;

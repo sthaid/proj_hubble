@@ -12,6 +12,8 @@
 
 #include <util_misc.h>
 
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))  // xxx in misc
+
 #define M_PER_KM     1000.               // meters per kilometer
 #define M_PER_MPC    3.086e22            // meters per megaparsec
 #define S_PER_YR     3.156e7             // seconds per year (365.25 days)
@@ -19,14 +21,12 @@
 #define S_PER_MYR    (S_PER_YR * 1e6)
 #define M_PER_LYR    9.461e15
 #define M_PER_BLYR   (M_PER_LYR * 1e9)
-
-#define c_si 3e8
+#define c_si         3e8
 
 #define DELTA_T_SECS (10000 * S_PER_YR)  // 10000 years
 
-#define T_START  0.000380
-
-#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))  // xxx in misc
+#define T_START      0.000380   // time when the universe became transparent
+#define TEMP_START   3000.      // temperature of CMB at T_START
 
 // sf.c
 void sf_init(void);

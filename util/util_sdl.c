@@ -1564,28 +1564,29 @@ static int find_y_intersect(point_t *p1, point_t *p2, double Y, point_t *p_inter
     return 1;
 }
 
-void sdl_render_circle(rect_t * pane, int32_t x_center, int32_t y_center, int32_t radius,
+void sdl_render_circle(rect_t * pane, int32_t x_center, int32_t y_center, int32_t radius_arg,
                        int32_t line_width, int32_t color)
 {
     int32_t count = 0, i, angle, x, y;
     SDL_Point points[370];
+    double radius = radius_arg;
 
-    static int32_t sin_table[370];
-    static int32_t cos_table[370];
+    static double sin_table[362];
+    static double cos_table[362];
     static bool first_call = true;
 
     // on first call make table of sin and cos indexed by degrees
     if (first_call) {
         for (angle = 0; angle < 362; angle++) {
-            sin_table[angle] = sin(angle*(2*M_PI/360)) * (1<<18);
-            cos_table[angle] = cos(angle*(2*M_PI/360)) * (1<<18);
+            sin_table[angle] = sin(angle*(2*M_PI/360));
+            cos_table[angle] = cos(angle*(2*M_PI/360));
         }
         first_call = false;
     }
 
     // validate radius
     if (radius < 0) {
-        ERROR("radius = %d\n", radius);
+        ERROR("radius = %f\n", radius);
         return;
     }
 
@@ -1593,11 +1594,11 @@ void sdl_render_circle(rect_t * pane, int32_t x_center, int32_t y_center, int32_
     set_color(color);
 
     // loop over line_width
-    for (i = 0; i < line_width; i++) {
+    for (i = 0; i < 4*line_width; i++) {
         // draw circle, and clip to pane dimensions
         for (angle = 0; angle < 362; angle++) {
-            x = x_center + (((int64_t)radius * sin_table[angle]) >> 18);
-            y = y_center + (((int64_t)radius * cos_table[angle]) >> 18);
+            x = x_center + radius * sin_table[angle];
+            y = y_center + radius * cos_table[angle];
             if (x < 0 || x >= pane->w || y < 0 || y >= pane->h) {
                 if (count) {
                     SDL_RenderDrawLines(sdl_renderer, points, count);
@@ -1614,8 +1615,8 @@ void sdl_render_circle(rect_t * pane, int32_t x_center, int32_t y_center, int32_
             count = 0;
         }
 
-        // reduce radius by 1
-        radius--;
+        // reduce radius
+        radius -= 0.25;
         if (radius < 0) {
             break;
         }
