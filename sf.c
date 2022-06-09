@@ -390,8 +390,8 @@ static void get_diameter_init(void)
 
     printf("creating diameter table file %s ...\n", filename);
     for (t = .01; t < 200; t += t_incr) {  //xxx 20 goes to 200
-        printf("  %d - %f\n", ++cnt, t);
         diameter = get_diameter_ex(t, &d_backtrack_end, &max_photon_distance);
+        printf("  %d - t=%f diameter=%f\n", ++cnt, t, diameter);
 
         if (max_tbl >= MAX_TBL) {
             printf("ERROR: diamter tbl is full\n");
