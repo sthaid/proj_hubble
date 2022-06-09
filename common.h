@@ -6,9 +6,13 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <string.h>
+#include <errno.h>
 #include <math.h>
 #include <pthread.h>
 #include <assert.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include <util_misc.h>
 
@@ -34,5 +38,6 @@ double get_sf(double t);
 double get_h(double t);
 double get_hsi(double t_sec);
 double get_diameter(double t_backtrack_start, double *d_backtrack_end, double *max_photon_distance);
+double get_diameter_ex(double t_backtrack_start, double *d_backtrack_end, double *max_photon_distance);
 
 #endif

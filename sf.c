@@ -110,6 +110,7 @@ static const bool run_unit_test = false;
 
 static double sf_init_get_h(double t);
 static void unit_test(void);
+static void get_diameter_init(void);
 static void join_init(line_t *l1, line_t *l2);
 static double join_get_y(double x);
 static double squared(double x);
@@ -160,6 +161,9 @@ void sf_init(void)
     l2 = (line_t){{t,a}, atan2(a_delta-a,.001)};
 
     join_init(&l1, &l2);
+
+    // xxx
+    get_diameter_init();
 
     // init is complete, perform unit test
     if (run_unit_test) {
@@ -321,7 +325,162 @@ double get_hsi(double t_sec)
 // - max_photon_distance: the maximum distance of the photon from the earth during 
 //    the time interval t_backtrack_start down to .00038 BYR.
 
-double get_diameter(double t_backtrack_start, double *d_backtrack_end_arg, double *max_photon_distance)
+typedef struct {
+    double t;
+    double diameter;
+    double d_backtrack_end;
+    double max_photon_distance;
+} diameter_t;
+
+static diameter_t *tbl;
+static int max_tbl;
+
+static void get_diameter_init(void)
+{
+    int rc, fd, len;
+    struct stat buf;
+    const char *filename = "sf.dat";
+
+    // if sf.dat file exists then read it and return
+    rc = stat(filename, &buf);
+    if (rc == 0) {
+        if (buf.st_size % sizeof(diameter_t)) {
+            printf("ERROR: file st.dat size must be multiple of %zd\n",
+                   sizeof(diameter_t));
+            exit(1);
+        }
+        max_tbl = buf.st_size / sizeof(diameter_t);
+        tbl = calloc(max_tbl, sizeof(diameter_t));
+        fd = open(filename, O_RDONLY);
+        if (fd < 0) {
+            printf("ERROR: open %s, %s\n", filename, strerror(errno));
+            exit(1);
+        }
+        len = read(fd, tbl, buf.st_size);
+        if (len != buf.st_size) {
+            printf("ERROR: read %s, %s\n", filename, strerror(errno));
+            exit(1);
+        }
+        close(fd);
+
+        printf("diameter tbl has been read from %s\n", filename);
+        return;
+    }
+
+    // loop over range of times and determine the diameter, d_backtrack_end and 
+    // max_phton_distance for each
+
+    double t, t_incr;
+    double diameter, d_backtrack_end, max_photon_distance;
+    int cnt=0;
+    #define MAX_TBL 100000
+
+    fd = open(filename, O_WRONLY|O_CREAT|O_EXCL, 0644);
+    if (fd < 0) {
+        printf("ERROR: create %s, %s\n", filename, strerror(errno));
+        exit(1);
+    }
+
+    tbl = calloc(MAX_TBL, sizeof(diameter_t));
+    if (tbl == NULL) {
+        printf("ERROR: failed to allocate tbl\n");
+        exit(1);
+    }
+    max_tbl = 0;
+
+    printf("creating diameter table file %s ...\n", filename);
+    for (t = .01; t < 200; t += t_incr) {  //xxx 20 goes to 200
+        printf("  %d - %f\n", ++cnt, t);
+        diameter = get_diameter_ex(t, &d_backtrack_end, &max_photon_distance);
+
+        if (max_tbl >= MAX_TBL) {
+            printf("ERROR: diamter tbl is full\n");
+            exit(1);
+        }
+
+        tbl[max_tbl].t = t;
+        tbl[max_tbl].diameter = diameter;
+        tbl[max_tbl].d_backtrack_end = d_backtrack_end;
+        tbl[max_tbl].max_photon_distance = max_photon_distance;
+        max_tbl++;
+
+        t_incr = (t < 0.1 ? .001 :
+                  t < 1.0 ? .01 :
+                            .1);
+    }
+
+    // write file sf.dat
+    len = write(fd, tbl, max_tbl*sizeof(diameter_t));
+    if (len != max_tbl*sizeof(diameter_t)) {
+        printf("ERROR: write tbl to %s, %s\n", filename, strerror(errno));
+        exit(1);
+    }
+
+    close(fd);
+
+    // exit program
+    printf("diameter table file %s has been created;\n", filename);
+    printf("program must be restarted\n");
+    exit(0);
+}
+
+double get_diameter(double t_backtrack_start, double *d_backtrack_end, double *max_photon_distance)
+{
+    static int idx;
+
+    #define MATCH (t_backtrack_start >= tbl[idx].t && t_backtrack_start <= tbl[idx+1].t)
+
+    if (MATCH) {
+        // idx is already okay
+    } else if (t_backtrack_start > tbl[idx+1].t) {
+        // search forward
+        for (idx = idx+1; idx < max_tbl-1; idx++) {
+            if (MATCH) break;
+        }
+    } else {
+        // search backward
+        for (idx = idx-1; idx >= 0; idx--) {
+            if (MATCH) break;
+        }
+    }
+
+    // if not found then reset idx and use get_diameter_ex
+    if (idx < 0 || idx >= max_tbl-1) {
+        idx = 0;
+        printf("WARNING: time %f not in diameter tbl\n", t_backtrack_start);
+        return get_diameter_ex(t_backtrack_start, d_backtrack_end, max_photon_distance);
+    }
+
+    if (!MATCH) {
+        printf("BUG: MATCH is false, t=%f idx=%d\n", t_backtrack_start, idx);
+        exit(1);
+    }
+
+#define EPSILON 1e-6
+#define IS_CLOSE(a,b) \
+    ({ double ratio = (a)/(b); \
+       ratio > 1-EPSILON && ratio < 1+EPSILON; })
+
+    // if close then use it
+    if (IS_CLOSE(t_backtrack_start, tbl[idx].t)) {
+        *d_backtrack_end = tbl[idx].d_backtrack_end;
+        *max_photon_distance = tbl[idx].max_photon_distance;
+        return tbl[idx].diameter;
+    }
+
+    if (IS_CLOSE(t_backtrack_start, tbl[idx+1].t)) {
+        *d_backtrack_end = tbl[idx+1].d_backtrack_end;
+        *max_photon_distance = tbl[idx+1].max_photon_distance;
+        return tbl[idx+1].diameter;
+    }
+
+
+    // xxx
+    printf("TBD NEED TO INTERPOLATE FOR t=%f\n", t_backtrack_start);
+    return get_diameter_ex(t_backtrack_start, d_backtrack_end, max_photon_distance);
+}
+    
+double get_diameter_ex(double t_backtrack_start, double *d_backtrack_end_arg, double *max_photon_distance)
 {
     double t_si, d_photon_si, h_si;
     double d_backtrack_end, t_backtrack_end, diameter;

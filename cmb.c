@@ -407,7 +407,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         switch (event->event_id) {
         case SDL_EVENT_CTRL:
             if (state == RESET || state == PAUSED) {
-                if (state == RESET) sim_reset();  // xxx temporary
+                //if (state == RESET) sim_reset();  // xxx temporary
                 sim_resume();
             } else if (state == RUNNING) {
                 sim_pause();
@@ -453,7 +453,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
                 if (t_done < .1+e) {
                     t_done = .1;
                 }
-                //xxx sim_reset();
+                sim_reset();
             }
             break;
         default: 
