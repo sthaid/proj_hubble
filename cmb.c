@@ -1,5 +1,6 @@
 // xxx
 // - README
+// - should reset the display_width
 
 #include <common.h>
 #include <util_sdl.h>
@@ -43,7 +44,7 @@ int win_width, win_height;
 double disp_width;
 
 state_t state;
-double  t_done = 13.8;
+double  t_done;
 
 double  t;
 double  d_start;
@@ -59,7 +60,7 @@ graph_t graph[4];
 
 void cmb_sim_init(void);
 void *cmb_sim_thread(void *cx);
-void sim_reset(void);
+void sim_reset(bool reset_disp_width);
 void sim_pause(void);
 void sim_resume(void);
 
@@ -88,7 +89,7 @@ void cmb_sim_init(void)
     pthread_t tid;
 
     // reset the simulation
-    sim_reset();
+    sim_reset(true);
 
     // create the cmd_sim_thread
     pthread_create(&tid, NULL, cmb_sim_thread, NULL);
@@ -156,22 +157,30 @@ void * cmb_sim_thread(void *cx)
     }
 }
 
-void sim_reset(void)
+// xxx arg to reset diamter
+void sim_reset(bool reset_disp_width)
 {
     graph_t *g;
     double diameter, initial_distance, max_photon_distance;
 
+    if (t_done == 0 || disp_width == 0) {
+        t_done = 13.8;
+        disp_width = get_diameter(t_done, NULL, NULL);
+    }
+
     state = RESET;
 
     diameter = get_diameter(t_done, &initial_distance, &max_photon_distance);
+
+    if (reset_disp_width) {
+        disp_width = diameter;
+    }
 
     d_start      = initial_distance;
     t            = T_START;
     d_photon     = initial_distance;
     d_space      = initial_distance;
     temperature  = TEMP_START;
-
-    disp_width = diameter;
 
     for (int i = 0; i < 4; i++) {
         memset(graph[i].y, 0, sizeof(graph[i].y));
@@ -361,11 +370,9 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             SDL_EVENT_CTRL, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
 
         // register the SDL_EVENT_RESET, which resets the simulation
-        if (state != DONE) {
-            sdl_render_text_and_register_event(
+        sdl_render_text_and_register_event(
                 pane, pane->w-COL2X(5,FONT_SZ), 0, FONT_SZ, "RESET", SDL_LIGHT_BLUE, SDL_BLACK, 
                 SDL_EVENT_RESET, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
-        }
 
         // register the SDL_EVENT_ZOOM which is used to adjust the 
         // display width scale using the mouse wheel
@@ -424,12 +431,12 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             } else if (state == RUNNING) {
                 sim_pause();
             } else {
-                sim_reset();
+                sim_reset(false);
             }
             break;
         case SDL_EVENT_RESET: case 'r':
             // the SDL_EVENT_RESET or 'r', resets the simulation
-            sim_reset();
+            sim_reset(true);
             break;
         case SDL_EVENT_ZOOM: ;
             // SDL_EVENT_ZOOM provides fine grain control of the display width
@@ -445,14 +452,21 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         case SDL_EVENT_KEY_LEFT_ARROW:
         case SDL_EVENT_KEY_RIGHT_ARROW: ;
             // the left/right arrow keys provide coarse control of the display width
-            double delta = (disp_width >= 1000 ? 100 : 10);
+            double delta = (disp_width >= 1000 ? 100 : 
+                            disp_width >=  100 ? 10  :
+                            disp_width >=   10 ? 1  :
+                                                 .1);
             if (event->event_id == SDL_EVENT_KEY_LEFT_ARROW) {
                 disp_width -= delta;
-                disp_width = delta*ceil(disp_width/delta);
-                if (disp_width < 10) disp_width = 10;
+                if (delta >= 1) {
+                    disp_width = delta*ceil(disp_width/delta);
+                }
+                if (disp_width < .100001) disp_width = .1;
             } else {
                 disp_width += delta;
-                disp_width = delta*floor(disp_width/delta);
+                if (delta >= 1) {
+                    disp_width = delta*floor(disp_width/delta);
+                }
             }
             break;
         case SDL_EVENT_KEY_UP_ARROW:
@@ -469,7 +483,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
                 t_done = t_done + (event->event_id == SDL_EVENT_KEY_UP_ARROW ? delta : -delta);
                 if (t_done < .1+e) t_done = .1;
                 if (t_done > 100-e) t_done = 100;
-                sim_reset();
+                sim_reset(true);
             }
             break;
         default: 
