@@ -162,7 +162,8 @@ void sf_init(void)
 
     join_init(&l1, &l2);
 
-    // xxx
+    // read the precomputed table of diameter, d_backtrack_end, and max_photon_distance
+    // values from file sf.dat; or if this file doesn't yet exist create the file
     get_diameter_init();
 
     // init is complete, perform unit test
@@ -335,6 +336,9 @@ typedef struct {
 static diameter_t *tbl;
 static int max_tbl;
 
+// The computation time it takes to backtrack a photon from time t_backtrack_start
+// to time .00038 byr is significant. To eliminate program execution delays caused
+// by this computation time, these values are pre-computed and saved to file sf.dat.
 static void get_diameter_init(void)
 {
     int rc, fd, len;
@@ -367,20 +371,23 @@ static void get_diameter_init(void)
         return;
     }
 
-    // loop over range of times and determine the diameter, d_backtrack_end and 
-    // max_phton_distance for each
+    // Loop over range of times and determine the diameter, d_backtrack_end and 
+    // max_phton_distance for each.
+    // And save these computed values to file sf.dat.
 
     double t, t_incr;
     double diameter, d_backtrack_end, max_photon_distance;
     int cnt=0;
     #define MAX_TBL 100000
 
+    // create empty file sf.dat
     fd = open(filename, O_WRONLY|O_CREAT|O_EXCL, 0644);
     if (fd < 0) {
         printf("ERROR: create %s, %s\n", filename, strerror(errno));
         exit(1);
     }
 
+    // allocate memory to save the results, an excessive allocation (MAX_TBL) is used
     tbl = calloc(MAX_TBL, sizeof(diameter_t));
     if (tbl == NULL) {
         printf("ERROR: failed to allocate tbl\n");
@@ -388,8 +395,10 @@ static void get_diameter_init(void)
     }
     max_tbl = 0;
 
+    // calculate the diameter, d_backtrack_end and max_photon_distance for 
+    // range of times from .01 to 200 BYR
     printf("creating diameter table file %s ...\n", filename);
-    for (t = .01; t < 200; t += t_incr) {  //xxx 20 goes to 200
+    for (t = .01; t < 200; t += t_incr) {
         diameter = get_diameter_ex(t, &d_backtrack_end, &max_photon_distance);
         printf("  %d - t=%f diameter=%f\n", ++cnt, t, diameter);
 
@@ -409,16 +418,15 @@ static void get_diameter_init(void)
                             .1);
     }
 
-    // write file sf.dat
+    // write tbl of results to file sf.dat
     len = write(fd, tbl, max_tbl*sizeof(diameter_t));
     if (len != max_tbl*sizeof(diameter_t)) {
         printf("ERROR: write tbl to %s, %s\n", filename, strerror(errno));
         exit(1);
     }
 
+    // close fd, and exit program
     close(fd);
-
-    // exit program
     printf("diameter table file %s has been created;\n", filename);
     printf("program must be restarted\n");
     exit(0);
@@ -427,9 +435,17 @@ static void get_diameter_init(void)
 double get_diameter(double t_backtrack_start, double *d_backtrack_end, double *max_photon_distance)
 {
     static int idx;
+    double diameter;
 
     #define MATCH (t_backtrack_start >= tbl[idx].t && t_backtrack_start <= tbl[idx+1].t)
 
+    #define EPSILON 1e-6
+    #define IS_CLOSE(a,b) \
+                ({ double ratio = (a)/(b); \
+                   ratio > 1-EPSILON && ratio < 1+EPSILON; })
+
+    // search the tbl, starting from last tbl idx, to locate the idx 
+    // where t_backtrack_start is in between tbl[idx] and tbl[idx+1]
     if (MATCH) {
         // idx is already okay
     } else if (t_backtrack_start > tbl[idx+1].t) {
@@ -444,40 +460,60 @@ double get_diameter(double t_backtrack_start, double *d_backtrack_end, double *m
         }
     }
 
-    // if not found then reset idx and use get_diameter_ex
+    // if matching idx is not found then reset idx and use get_diameter_ex
     if (idx < 0 || idx >= max_tbl-1) {
         idx = 0;
         printf("WARNING: time %f not in diameter tbl\n", t_backtrack_start);
         return get_diameter_ex(t_backtrack_start, d_backtrack_end, max_photon_distance);
     }
 
+    // sanity check that an idx was found
     if (!MATCH) {
         printf("BUG: MATCH is false, t=%f idx=%d\n", t_backtrack_start, idx);
         exit(1);
     }
 
-#define EPSILON 1e-6
-#define IS_CLOSE(a,b) \
-    ({ double ratio = (a)/(b); \
-       ratio > 1-EPSILON && ratio < 1+EPSILON; })
-
-    // if close then use it
+    // if the time for tbl[idx] is very close to the caller's 
+    // requested t_backtrack_start, then return values from tbl[idx]
     if (IS_CLOSE(t_backtrack_start, tbl[idx].t)) {
-        *d_backtrack_end = tbl[idx].d_backtrack_end;
-        *max_photon_distance = tbl[idx].max_photon_distance;
-        return tbl[idx].diameter;
+        if (d_backtrack_end) {
+            *d_backtrack_end = tbl[idx].d_backtrack_end;
+        }
+        if (max_photon_distance) {
+            *max_photon_distance = tbl[idx].max_photon_distance;
+        }
+        diameter = tbl[idx].diameter;
+        return diameter;
     }
 
+    // if the time for tbl[idx+1] is very close to the caller's 
+    // requested t_backtrack_start, then return values from tbl[idx+1]
     if (IS_CLOSE(t_backtrack_start, tbl[idx+1].t)) {
-        *d_backtrack_end = tbl[idx+1].d_backtrack_end;
-        *max_photon_distance = tbl[idx+1].max_photon_distance;
-        return tbl[idx+1].diameter;
+        if (d_backtrack_end) {
+            *d_backtrack_end = tbl[idx+1].d_backtrack_end;
+        }
+        if (max_photon_distance) {
+            *max_photon_distance = tbl[idx+1].max_photon_distance;
+        }
+        diameter = tbl[idx+1].diameter;
+        return diameter;
     }
 
-
-    // xxx
-    printf("TBD NEED TO INTERPOLATE FOR t=%f\n", t_backtrack_start);
-    return get_diameter_ex(t_backtrack_start, d_backtrack_end, max_photon_distance);
+    // determine return values by interpolating
+    diameter = interpolate(t_backtrack_start,
+                           tbl[idx].t, tbl[idx+1].t,
+                           tbl[idx].diameter, tbl[idx+1].diameter);
+    if (d_backtrack_end) {
+        *d_backtrack_end = interpolate(t_backtrack_start,
+                                       tbl[idx].t, tbl[idx+1].t,
+                                       tbl[idx].d_backtrack_end, tbl[idx+1].d_backtrack_end);
+    }
+    if (max_photon_distance) {
+        *max_photon_distance = interpolate(t_backtrack_start,
+                                           tbl[idx].t, tbl[idx+1].t,
+                                           tbl[idx].max_photon_distance, tbl[idx+1].max_photon_distance);
+    }
+    return diameter;
 }
     
 double get_diameter_ex(double t_backtrack_start, double *d_backtrack_end_arg, double *max_photon_distance)

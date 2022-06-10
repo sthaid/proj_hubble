@@ -1,9 +1,6 @@
 // xxx
-// - keys for pause and continue and reset
-// - comments
-// - review
 // - README
-// - vertical drag to adjust size
+// - graph hubble param
 
 #include <common.h>
 #include <util_sdl.h>
@@ -47,7 +44,7 @@ int win_width, win_height;
 double disp_width;
 
 state_t state;
-double  t_done = 13.8;  // xxx define
+double  t_done = 13.8;
 
 double  t;
 double  d_start;
@@ -101,7 +98,10 @@ void cmb_sim_init(void)
 void * cmb_sim_thread(void *cx)
 {
     double d_photon_si, t_si, h_si;
+    double sf, sf_t_start;
     int count = 0;
+
+    sf_t_start = get_sf(T_START);
 
     while (true) {
         // poll for state == RUNNING
@@ -109,28 +109,40 @@ void * cmb_sim_thread(void *cx)
             usleep(10000);
         }
 
+        // convert values to SI units
         d_photon_si = d_photon * M_PER_BLYR;
         t_si = t * S_PER_BYR;
         h_si = get_hsi(t_si);
         
+        // update the distance of the photon from the hypothetical
+        // perpetual earth, for DELTA_T_SECS time increment
         d_photon_si += (-c_si + h_si * d_photon_si) * DELTA_T_SECS;
         t_si += DELTA_T_SECS;
 
+        // convert values back to BLYR and BYR units
         d_photon = d_photon_si / M_PER_BLYR;
         t = t_si / S_PER_BYR;
 
-        d_space = d_start * get_sf(t) / get_sf(T_START);
-        temperature = (TEMP_START * (get_sf(T_START) / get_sf(t)));
+        // determine, for the new time 't':
+        // - the distance of the patch of space, from which the
+        //   CMB was emitted, to the perpetual earth, 
+        // - the temperature of the CMB
+        // these are both determined by the amount the universe
+        // has expanded form T_START (.000380 BYR) to time 't'
+        sf = get_sf(t);
+        d_space = d_start * (sf / sf_t_start);
+        temperature = TEMP_START / (sf / sf_t_start);
 
+        // save values to be displayed in the 4 graphs
         int gridx = (t / t_done) * MAX_GRAPH_POINTS;
         if (gridx >= 0 && gridx < MAX_GRAPH_POINTS) {
-            graph[0].y[gridx] = get_sf(t);
+            graph[0].y[gridx] = sf;
             graph[1].y[gridx] = temperature;
             graph[2].y[gridx] = d_photon;
             graph[3].y[gridx] = d_space;
         }
 
-        // xxx comments
+        // if the CMB photon has reached the earth, then we're done
         if (d_photon <= 0) {
             state = DONE;
             d_photon = 0;
@@ -174,7 +186,7 @@ void sim_reset(void)
     g->y[0]      = get_sf(T_START);
 
     g = &graph[1];
-    g->max_yval  = 1000;
+    g->max_yval  = 100;
     g->title     = "TEMP";
     g->units     = " K";
     g->precision = 1;
@@ -405,9 +417,10 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
 
     if (request == PANE_HANDLER_REQ_EVENT) {
         switch (event->event_id) {
-        case SDL_EVENT_CTRL:
+        case SDL_EVENT_CTRL: case ' ':
+            // the SDL_EVENT_CTRL or the space-bar are used to
+            // control the state of the simulation (resume, pause, reset)
             if (state == RESET || state == PAUSED) {
-                //if (state == RESET) sim_reset();  // xxx temporary
                 sim_resume();
             } else if (state == RUNNING) {
                 sim_pause();
@@ -415,10 +428,12 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
                 sim_reset();
             }
             break;
-        case SDL_EVENT_RESET:
+        case SDL_EVENT_RESET: case 'r':
+            // the SDL_EVENT_RESET or 'r', resets the simulation
             sim_reset();
             break;
         case SDL_EVENT_ZOOM: ;
+            // SDL_EVENT_ZOOM provides fine grain control of the display width
             double dy = -event->mouse_wheel.delta_y;
             if (dy == 0) break;
             if (dy < 0 && disp_width <= 1) dy = -.01;
@@ -429,18 +444,21 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             if (disp_width < .01) disp_width = .01;
             break;
         case SDL_EVENT_KEY_LEFT_ARROW:
-        case SDL_EVENT_KEY_RIGHT_ARROW:
+        case SDL_EVENT_KEY_RIGHT_ARROW: ;
+            // the left/right arrow keys provide coarse control of the display width
+            double delta = (disp_width >= 1000 ? 100 : 10);
             if (event->event_id == SDL_EVENT_KEY_LEFT_ARROW) {
-                disp_width -= 10;
-                disp_width = 10*ceil(disp_width/10);
+                disp_width -= delta;
+                disp_width = delta*ceil(disp_width/delta);
                 if (disp_width < 10) disp_width = 10;
             } else {
-                disp_width += 10;
-                disp_width = 10*floor(disp_width/10);
+                disp_width += delta;
+                disp_width = delta*floor(disp_width/delta);
             }
             break;
         case SDL_EVENT_KEY_UP_ARROW:
         case SDL_EVENT_KEY_DOWN_ARROW:
+            // the up/down arrow keys adjust t_done
             if (state == RESET) {
                 double delta;
                 double e = 1e-6;
@@ -450,9 +468,8 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
                          t_done < 15-e   ? 0.1    :
                                             1.);
                 t_done = t_done + (event->event_id == SDL_EVENT_KEY_UP_ARROW ? delta : -delta);
-                if (t_done < .1+e) {
-                    t_done = .1;
-                }
+                if (t_done < .1+e) t_done = .1;
+                if (t_done > 100-e) t_done = 100;
                 sim_reset();
             }
             break;
