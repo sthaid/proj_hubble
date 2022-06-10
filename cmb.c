@@ -1,6 +1,5 @@
 // xxx
 // - README
-// - graph hubble param
 
 #include <common.h>
 #include <util_sdl.h>
@@ -137,9 +136,9 @@ void * cmb_sim_thread(void *cx)
         int gridx = (t / t_done) * MAX_GRAPH_POINTS;
         if (gridx >= 0 && gridx < MAX_GRAPH_POINTS) {
             graph[0].y[gridx] = sf;
-            graph[1].y[gridx] = temperature;
-            graph[2].y[gridx] = d_photon;
-            graph[3].y[gridx] = d_space;
+            graph[1].y[gridx] = get_h(t);;
+            graph[2].y[gridx] = temperature;
+            graph[3].y[gridx] = d_photon;
         }
 
         // if the CMB photon has reached the earth, then we're done
@@ -186,25 +185,25 @@ void sim_reset(void)
     g->y[0]      = get_sf(T_START);
 
     g = &graph[1];
+    g->max_yval  = 1000;
+    g->title     = "HUBBLE";
+    g->units     = " KM/SEC/MPC";
+    g->precision = 0;
+    g->y[0]      = get_h(T_START);
+
+    g = &graph[2];
     g->max_yval  = 100;
     g->title     = "TEMP";
     g->units     = " K";
     g->precision = 1;
     g->y[0]      = temperature;
 
-    g = &graph[2];
+    g = &graph[3];
     g->max_yval  = max_photon_distance;
     g->title     = "PHOTON";
     g->units     = " BLYR";
     g->precision = 3;
     g->y[0]      = d_photon;
-
-    g = &graph[3];
-    g->max_yval  = diameter/2;
-    g->title     = "SPACE";
-    g->units     = " BLYR";
-    g->precision = 3;
-    g->y[0]      = d_space;
 }
 
 void sim_pause(void)
@@ -374,7 +373,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             SDL_EVENT_ZOOM, SDL_EVENT_TYPE_MOUSE_WHEEL, pane_cx);
 
         // display current state at top middle
-        sprintf(title_str, "%s  DISP_WIDTH=%0.*f",\
+        sprintf(title_str, "%s  DISPLAY_WIDTH=%0.*f",\
             STATE_STR(state), PRECISION(disp_width), disp_width);
         len = strlen(title_str);
         sdl_render_printf(
@@ -553,12 +552,12 @@ int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_e
         // display the title line
         int t_precision = (t < .001 ? 6 : t < 1 ? 3 : 1);
         sdl_render_printf(
-              pane, COL2X(3,FONT_SZ), 0, FONT_SZ,
+              pane, COL2X(2,FONT_SZ), 0, FONT_SZ,
               SDL_WHITE, SDL_BLACK, 
-              "%s %0.*f%s - T %0.*f BYR - YMAX %0.*f%s",
+              "%s %0.*f%s - T %0.*f BYR - YMAX %0.*f",
               g->title, g->precision, g->y[last_i], g->units,
               t_precision, t,
-              g->precision, g->max_yval, g->units);
+              g->precision, g->max_yval);
 
         // display the points
         sdl_render_points(pane, points, n, SDL_WHITE, 1);
