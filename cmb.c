@@ -60,7 +60,7 @@ graph_t graph[4];
 
 void cmb_sim_init(void);
 void *cmb_sim_thread(void *cx);
-void sim_reset(bool reset_disp_width);
+void sim_reset(void);
 void sim_pause(void);
 void sim_resume(void);
 
@@ -89,7 +89,7 @@ void cmb_sim_init(void)
     pthread_t tid;
 
     // reset the simulation
-    sim_reset(true);
+    sim_reset();
 
     // create the cmd_sim_thread
     pthread_create(&tid, NULL, cmb_sim_thread, NULL);
@@ -158,10 +158,10 @@ void * cmb_sim_thread(void *cx)
 }
 
 // xxx arg to reset diamter
-void sim_reset(bool reset_disp_width)
+void sim_reset(void)
 {
     graph_t *g;
-    double diameter, initial_distance, max_photon_distance;
+    double initial_distance, max_photon_distance;
 
     if (t_done == 0 || disp_width == 0) {
         t_done = 13.8;
@@ -170,11 +170,7 @@ void sim_reset(bool reset_disp_width)
 
     state = RESET;
 
-    diameter = get_diameter(t_done, &initial_distance, &max_photon_distance);
-
-    if (reset_disp_width) {
-        disp_width = diameter;
-    }
+    get_diameter(t_done, &initial_distance, &max_photon_distance);
 
     d_start      = initial_distance;
     t            = T_START;
@@ -295,9 +291,10 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
     } * vars = pane_cx->vars;
     rect_t * pane = &pane_cx->pane;
 
-    #define SDL_EVENT_CTRL   (SDL_EVENT_USER_DEFINED + 0)
-    #define SDL_EVENT_ZOOM   (SDL_EVENT_USER_DEFINED + 1)
-    #define SDL_EVENT_RESET  (SDL_EVENT_USER_DEFINED + 2)
+    #define SDL_EVENT_CTRL      (SDL_EVENT_USER_DEFINED + 0)
+    #define SDL_EVENT_ZOOM      (SDL_EVENT_USER_DEFINED + 1)
+    #define SDL_EVENT_RESET     (SDL_EVENT_USER_DEFINED + 2)
+    #define SDL_EVENT_RESET_DW  (SDL_EVENT_USER_DEFINED + 3)
 
     #define PRECISION(x) ((x) == 0 ? 0 : (x) < .001 ? 6 : (x) < 1 ? 3 : (x) < 100 ? 1 : 0)
 
@@ -371,8 +368,13 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
 
         // register the SDL_EVENT_RESET, which resets the simulation
         sdl_render_text_and_register_event(
-                pane, pane->w-COL2X(5,FONT_SZ), 0, FONT_SZ, "RESET", SDL_LIGHT_BLUE, SDL_BLACK, 
+                pane, pane->w-COL2X(8,FONT_SZ), 0, FONT_SZ, "RESET", SDL_LIGHT_BLUE, SDL_BLACK, 
                 SDL_EVENT_RESET, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
+
+        // register the SDL_EVENT_RESET_DW, which resets the display width
+        sdl_render_text_and_register_event(
+                pane, pane->w-COL2X(8,FONT_SZ), ROW2Y(2,FONT_SZ), FONT_SZ, "RESET_DW", SDL_LIGHT_BLUE, SDL_BLACK, 
+                SDL_EVENT_RESET_DW, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
 
         // register the SDL_EVENT_ZOOM which is used to adjust the 
         // display width scale using the mouse wheel
@@ -431,12 +433,16 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             } else if (state == RUNNING) {
                 sim_pause();
             } else {
-                sim_reset(false);
+                sim_reset();
             }
             break;
         case SDL_EVENT_RESET: case 'r':
             // the SDL_EVENT_RESET or 'r', resets the simulation
-            sim_reset(true);
+            sim_reset();
+            break;
+        case SDL_EVENT_RESET_DW: case 'R':
+            // the SDL_EVENT_RESET_DW or 'R', resets the display_width
+            disp_width = get_diameter(t_done, NULL, NULL);
             break;
         case SDL_EVENT_ZOOM: ;
             // SDL_EVENT_ZOOM provides fine grain control of the display width
@@ -483,7 +489,8 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
                 t_done = t_done + (event->event_id == SDL_EVENT_KEY_UP_ARROW ? delta : -delta);
                 if (t_done < .1+e) t_done = .1;
                 if (t_done > 100-e) t_done = 100;
-                sim_reset(true);
+                sim_reset();
+                disp_width = get_diameter(t_done, NULL, NULL);
             }
             break;
         default: 
