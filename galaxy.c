@@ -46,7 +46,7 @@ double disp_width;
 state_t state;
 
 double  t;
-double  temperature;
+//double  temperature;
 
 #if 0
 double  t_done;
@@ -86,6 +86,14 @@ int main(int argc, char **argv)
 }
 
 // -----------------  CMB SIM  ------------------------------------
+
+static double get_temperature(double t)
+{
+    double temp;
+
+    temp = TEMP_START / (get_sf(t) / get_sf(T_START));
+    return temp;
+}
 
 #define MB 0x100000
 #define MAX_GALAXY 10000000
@@ -160,13 +168,13 @@ void galaxy_sim_init(void)
 
 void * galaxy_sim_thread(void *cx)
 {
-    double sf, sf_t_start;
+    //double sf, sf_t_start;
+    //sf_t_start = get_sf(T_START);
 
-    sf_t_start = get_sf(T_START);
-
+    // xxx may not need this
     while (true) {
-        sf = get_sf(t);
-        temperature = TEMP_START / (sf / sf_t_start);
+        //j.sf = get_sf(t);
+        //temperature = TEMP_START / (sf / sf_t_start);
         usleep(1000);
     }
 #if 0 //xxx
@@ -234,8 +242,21 @@ void * galaxy_sim_thread(void *cx)
 void sim_reset(void)
 {
     t            = 13.8;  // xxx
-    temperature  = 2.7;
+    //temperature  = 2.7;
     disp_width   = 30; 
+
+    graph_t *g;
+
+    g = &graph[0];
+    g->max_yval  = get_sf(100);
+    g->title     = "SCALE_FACTOR";
+    g->units     = "";
+    g->precision = 3;
+    for (int i = 0; i < MAX_GRAPH_POINTS; i++) {
+        double ti = i * (100. / MAX_GRAPH_POINTS);
+        if (ti < T_START) continue;
+        g->y[i] = get_sf(ti);
+    }
 
 #if 0
     graph_t *g;
@@ -407,7 +428,9 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         int len;
 
         // display yellow background, the intensity represents the temperature
-        yidx = log(temperature) * (255. / 8.);
+        double temp = get_temperature(t);
+
+        yidx = log(temp) * (255. / 8.);
         if (yidx < 0) yidx = 0;
         if (yidx > 255) yidx = 255;
         sdl_render_fill_rect(pane, &(rect_t){0,0,pane->w, pane->h}, yellow[yidx]);
@@ -513,7 +536,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         sdl_render_printf(
             pane, 0, ROW2Y(4,FONT_SZ),
             FONT_SZ, SDL_WHITE, SDL_BLACK, "TEMP   %-8.*f",
-            PRECISION(temperature), temperature);
+            PRECISION(temp), temp);
 #if 0
         sdl_render_printf(
             pane, 0, ROW2Y(5,FONT_SZ),
@@ -552,6 +575,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         case SDL_EVENT_RESET_DW: case 'R':
             // the SDL_EVENT_RESET_DW or 'R', resets the display_width
             //xxx disp_width = get_diameter(t_done, NULL, NULL);
+            disp_width = 30; //xxx
             break;
         case SDL_EVENT_ZOOM: ;
             // SDL_EVENT_ZOOM provides fine grain control of the display width
