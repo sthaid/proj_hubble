@@ -13,7 +13,7 @@
 
 #define DEG2RAD(deg)  ((deg) * (M_PI / 180))
 
-#define MAX_GRAPH_POINTS 1000
+#define MAX_GRAPH_POINTS 796 // xxx assert
 
 #define STATE_STR(x) \
     ((x) == RESET   ? "RESET"   : \
@@ -31,7 +31,8 @@ typedef enum {RESET, RUNNING, PAUSED, DONE} state_t;
 typedef struct {
     char *title;
     char *units;
-    int precision;
+    //int precision;
+    double max_xval;  // xxx used?
     double max_yval;
     double y[MAX_GRAPH_POINTS];
 } graph_t;
@@ -248,10 +249,11 @@ void sim_reset(void)
     graph_t *g;
 
     g = &graph[0];
+    g->max_xval  = 100;
     g->max_yval  = get_sf(100);
     g->title     = "SCALE_FACTOR";
     g->units     = "";
-    g->precision = 3;
+    //g->precision = 3;
     for (int i = 0; i < MAX_GRAPH_POINTS; i++) {
         double ti = i * (100. / MAX_GRAPH_POINTS);
         if (ti < T_START) continue;
@@ -435,9 +437,6 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         if (yidx > 255) yidx = 255;
         sdl_render_fill_rect(pane, &(rect_t){0,0,pane->w, pane->h}, yellow[yidx]);
 
-        // display blue point at center, representing location of the observer
-        sdl_render_point(pane, pane->w/2, pane->h/2, SDL_LIGHT_BLUE, 8);
-
         // xxx
         point_t points[500];
         int n = 0;
@@ -449,7 +448,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             galaxy_t *g = &galaxy[i];
 
             // xxx do a square instead of a circle
-            if (g->d*sf > disp_width/2) {
+            if (g->d * sf > disp_width * .7071) {
                 sdl_render_points(pane, points, n, SDL_WHITE, 1);
                 n = 0;
                 break;
@@ -467,6 +466,10 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
                 n = 0;
             }
         }
+
+        // display blue point at center, representing location of the observer
+        sdl_render_point(pane, pane->w/2, pane->h/2, SDL_LIGHT_BLUE, 8);
+
 
 #if 0
         // display points surrouding the observer; 
@@ -710,7 +713,9 @@ int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_e
 
             last_i = i;
 
-            points[n].x = ((double)i / MAX_GRAPH_POINTS) * pane->w;
+// xxx simplify
+            //points[n].x = ((double)i / MAX_GRAPH_POINTS) * pane->w;
+            points[n].x = i;
             points[n].y = (pane->h - 1) -
                           ((yval / g->max_yval) * (0.85 * pane->h));
             n++;
@@ -721,14 +726,19 @@ int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_e
             return PANE_HANDLER_RET_NO_ACTION;
         }
 
+#if 0
         // determine the time of the last graph point
         //xxx double t = last_i * (t_done / MAX_GRAPH_POINTS);
-        double t = 0;
+        //double t = 0;
+        // xxx last_i ?
         if (t == 0) {
             t = T_START;
         }
+#endif
 
         // display the title line
+        // xxx needs work
+#if 0
         int t_precision = (t < .001 ? 6 : t < 1 ? 3 : 1);
         sdl_render_printf(
               pane, COL2X(2,FONT_SZ), 0, FONT_SZ,
@@ -737,9 +747,18 @@ int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_e
               g->title, g->precision, g->y[last_i], g->units,
               t_precision, t,
               g->precision, g->max_yval);
+#endif
 
         // display the points
         sdl_render_points(pane, points, n, SDL_WHITE, 1);
+
+        int x = MAX_GRAPH_POINTS * (t / 100);
+        int y = (pane->h - 1) -
+                ((g->y[x] / g->max_yval) * (0.85 * pane->h));
+        sdl_render_line(pane,
+                        x, y+10,
+                        x, y-10,
+                        SDL_WHITE);
 
         return PANE_HANDLER_RET_NO_ACTION;
     }
