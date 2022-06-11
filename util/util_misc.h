@@ -40,4 +40,9 @@ uint64_t microsec_timer(void);
 uint64_t get_real_time_us(void);
 char * time2str(char * str, int64_t us, bool gmt, bool display_ms, bool display_date);
 
+// -----------------  RANDOM NUMBERS------------------------------------------
+
+double random_range(double min, double max);
+double random_triangular(double min, double max);
+
 #endif

@@ -87,9 +87,69 @@ int main(int argc, char **argv)
 
 // -----------------  CMB SIM  ------------------------------------
 
+#define MB 0x100000
+#define MAX_GALAXY 10000000
+
+typedef struct {
+    float x;
+    float y;
+    float d;
+    float t_create;
+} galaxy_t;
+
+galaxy_t *galaxy;
+
+static double squared(double x)
+{
+    return x * x;
+}
+
+int compare(const void *a, const void *b)
+{
+    const galaxy_t *ga = a;
+    const galaxy_t *gb = b;
+
+    return (ga->d  > gb->d ? 1 :
+            ga->d == gb->d ? 0 :
+                            -1);
+}
+
 void galaxy_sim_init(void)
 {
     pthread_t tid;
+    size_t size;
+    int i;
+
+    size = MAX_GALAXY * sizeof(galaxy_t);
+    printf("size needed %zd MB\n", size/MB);
+    galaxy = malloc(size);
+    if (galaxy == NULL) {
+        printf("ERROR: failed to allocate memory for galaxy, size needed %zd MB\n", size/MB);
+        exit(1);
+    }
+    printf("  malloc ret %p\n", galaxy);
+
+    printf("INITIALIZING\n");
+    for (i = 0; i < MAX_GALAXY; i++) {
+        galaxy_t *g = &galaxy[i];
+        g->x = random_range(-500, 500);
+        g->y = random_range(-500, 500);
+        g->d = sqrt(squared(g->x) + squared(g->y));
+        g->t_create = random_triangular(0.75, 1.25);
+    }
+
+    // sort by distance
+    printf("SORTING\n");
+    qsort(galaxy, MAX_GALAXY, sizeof(galaxy_t), compare);
+    printf("SORTING DONE\n");
+
+#if 0
+    for (i = 0; i < 50; i++) {
+        printf("%d t_create = %f\n", i, galaxy[i].t_create);
+    }
+    exit(1);
+#endif
+
 
     // reset the simulation
     sim_reset();
@@ -100,7 +160,13 @@ void galaxy_sim_init(void)
 
 void * galaxy_sim_thread(void *cx)
 {
+    double sf, sf_t_start;
+
+    sf_t_start = get_sf(T_START);
+
     while (true) {
+        sf = get_sf(t);
+        temperature = TEMP_START / (sf / sf_t_start);
         usleep(1000);
     }
 #if 0 //xxx
@@ -349,6 +415,36 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         // display blue point at center, representing location of the observer
         sdl_render_point(pane, pane->w/2, pane->h/2, SDL_LIGHT_BLUE, 8);
 
+        // xxx
+        point_t points[500];
+        int n = 0;
+        int ctr = pane->w/2;
+        double scale = pane->w/disp_width;
+        double sf = get_sf(t);
+
+        for (int i = 0; i < MAX_GALAXY; i++) {
+            galaxy_t *g = &galaxy[i];
+
+            // xxx do a square instead of a circle
+            if (g->d*sf > disp_width/2) {
+                sdl_render_points(pane, points, n, SDL_WHITE, 1);
+                n = 0;
+                break;
+            }
+
+            if (t < g->t_create) {
+                continue;
+            }
+
+            points[n].x = ctr + (g->x * sf) * scale;
+            points[n].y = ctr + (g->y * sf) * scale;
+            n++;
+            if (n == ARRAY_SIZE(points)) {
+                sdl_render_points(pane, points, n, SDL_WHITE, 1);
+                n = 0;
+            }
+        }
+
 #if 0
         // display points surrouding the observer; 
         // these points represent the position of the CMB photons as they move due to
@@ -488,26 +584,48 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
                 }
             }
             break;
-#if 0
         case SDL_EVENT_KEY_UP_ARROW:
         case SDL_EVENT_KEY_DOWN_ARROW:
-            // the up/down arrow keys adjust t_done
+        case SDL_EVENT_KEY_SHIFT_UP_ARROW:
+        case SDL_EVENT_KEY_SHIFT_DOWN_ARROW:
+            // the up/down arrow keys adjust t
             if (state == RESET) {
+#if 0
                 double delta;
                 double e = 1e-6;
-                delta = (t_done < .001-e ? 0.0001 :
-                         t_done < .01-e  ? 0.001  :
-                         t_done < .1-e   ? 0.01   :
-                         t_done < 15-e   ? 0.1    :
+                delta = (t < .001-e ? 0.0001 :
+                         t < .01-e  ? 0.001  :
+                         t < .1-e   ? 0.01   :
+                         t < 15-e   ? 0.1    :
                                             1.);
-                t_done = t_done + (event->event_id == SDL_EVENT_KEY_UP_ARROW ? delta : -delta);
-                if (t_done < .1+e) t_done = .1;
-                if (t_done > 100-e) t_done = 100;
-                sim_reset();
-                disp_width = get_diameter(t_done, NULL, NULL);
+                t = t + (event->event_id == SDL_EVENT_KEY_UP_ARROW ? delta : -delta);
+                if (t < T_START+e) t = T_START;
+                if (t > 100-e) t = 100;
+#else
+// xxx shift arrow to go faster
+/*
+                double factor = 
+(event->event_id == SDL_EVENT_KEY_UP_ARROW ||
+event->event_id == SDL_EVENT_KEY_DOWN_ARROW) ? 1.01 : 1.1;
+
+                if (event->event_id == SDL_EVENT_KEY_UP_ARROW) {
+                    t *= factor;
+                } else {
+                    t /= factor;
+                }
+*/
+                switch (event->event_id) {
+                case SDL_EVENT_KEY_UP_ARROW:         t *= 1.01; break;
+                case SDL_EVENT_KEY_DOWN_ARROW:       t /= 1.01; break;
+                case SDL_EVENT_KEY_SHIFT_UP_ARROW:   t *= 1.1;  break;
+                case SDL_EVENT_KEY_SHIFT_DOWN_ARROW: t /= 1.1;  break;
+                }
+                if (t < T_START) t = T_START;
+#endif
+                //sim_reset();
+                //disp_width = get_diameter(t, NULL, NULL);
             }
             break;
-#endif
         default: 
             break;
         }

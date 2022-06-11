@@ -1,7 +1,9 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
 #include <time.h>
+#include <math.h>
 
 #include "util_misc.h"
 
@@ -83,5 +85,30 @@ char * time2str(char * str, int64_t us, bool gmt, bool display_ms, bool display_
     }
 
     return str;
+}
+
+// -----------------  RANDOM NUMBERS  -------------------------------------
+
+// return uniformly distributed random numbers in range min to max inclusive
+double random_range(double min, double max)
+{
+    return ((double)random() / RAND_MAX) * (max - min) + min;
+}
+
+// return triangular distributed random numbers in range min to max inclusive
+// Refer to:
+// - http://en.wikipedia.org/wiki/Triangular_distribution
+// - http://stackoverflow.com/questions/3510475/generate-random-numbers-according-to-distributions
+double random_triangular(double min, double max)
+{
+    double range = max - min;
+    double range_squared_div_2 = range * range / 2;
+    double U = (double)random() / RAND_MAX;   // 0 - 1 uniform
+
+    if (U <= 0.5) {
+        return min + sqrt(U * range_squared_div_2);
+    } else {
+        return max - sqrt((1.f - U) * range_squared_div_2);
+    }
 }
 

@@ -1768,7 +1768,7 @@ void sdl_render_points(rect_t * pane, point_t * points, int32_t count, int32_t c
     struct point_extend_s * pe = &point_extend[point_size];
     struct point_extend_offset_s * peo = pe->offset;
 
-    if (count < 0) {
+    if (count <= 0) {
         return;
     }
     if (point_size < 0 || point_size > 9) {
