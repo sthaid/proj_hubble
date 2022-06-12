@@ -97,13 +97,14 @@ static double get_temperature(double t)
 }
 
 #define MB 0x100000
-#define MAX_GALAXY 10000000
+#define MAX_GALAXY 1000000
 
 typedef struct {
     float x;
     float y;
     float d;
     float t_create;
+    float t_visible;
 } galaxy_t;
 
 galaxy_t *galaxy;
@@ -169,82 +170,87 @@ void galaxy_sim_init(void)
 
 void * galaxy_sim_thread(void *cx)
 {
-    //double sf, sf_t_start;
-    //sf_t_start = get_sf(T_START);
-
-    // xxx may not need this
-    while (true) {
-        //j.sf = get_sf(t);
-        //temperature = TEMP_START / (sf / sf_t_start);
-        usleep(1000);
-    }
-#if 0 //xxx
-    double d_photon_si, t_si, h_si;
-    double sf, sf_t_start;
-    int count = 0;
-
-    sf_t_start = get_sf(T_START);
+    double t_computed = 0;
+    double t_working = 0;
 
     while (true) {
-        // poll for state == RUNNING
-        while (state != RUNNING) {
-            usleep(10000);
-        }
-
-        // convert values to SI units
-        d_photon_si = d_photon * M_PER_BLYR;
-        t_si = t * S_PER_BYR;
-        h_si = get_hsi(t_si);
-        
-        // update the distance of the photon from the hypothetical
-        // perpetual earth, for DELTA_T_SECS time increment
-        d_photon_si += (-c_si + h_si * d_photon_si) * DELTA_T_SECS;
-        t_si += DELTA_T_SECS;
-
-        // convert values back to BLYR and BYR units
-        d_photon = d_photon_si / M_PER_BLYR;
-        t = t_si / S_PER_BYR;
-
-        // determine, for the new time 't':
-        // - the distance of the patch of space, from which the
-        //   CMB was emitted, to the perpetual earth, 
-        // - the temperature of the CMB
-        // these are both determined by the amount the universe
-        // has expanded form T_START (.000380 BYR) to time 't'
-        sf = get_sf(t);
-        d_space = d_start * (sf / sf_t_start);
-        temperature = TEMP_START / (sf / sf_t_start);
-
-        // save values to be displayed in the 4 graphs
-        int gridx = (t / t_done) * MAX_GRAPH_POINTS;
-        if (gridx >= 0 && gridx < MAX_GRAPH_POINTS) {
-            graph[0].y[gridx] = sf;
-            graph[1].y[gridx] = get_h(t);;
-            graph[2].y[gridx] = temperature;
-            graph[3].y[gridx] = d_photon;
-        }
-
-        // if the CMB photon has reached the earth, then we're done
-        if (d_photon <= 0) {
-            state = DONE;
-            d_photon = 0;
-            continue;
-        }
-
-        // delay to complete simulation in about 10 seconds
-        if (++count >= (150 * (t_done / 13.8))) {
+        while (t == t_computed) {
             usleep(1000);
-            count = 0;
         }
+
+restart:
+        t_working = t;
+        t_computed = 0;
+        printf("STARTING for t = %f\n", t_working);
+
+// xxx time this
+        //xxx clear all t_visible
+        printf("CLEARING T_VISIBLE\n");
+        for (int i = 0; i < MAX_GALAXY; i++) {
+            galaxy[i].t_visible = 0;
+        }
+        printf("DONE CLEARING T_VISIBLE\n");
+
+        // backtrack a photon 
+        // at each step check to see which galaxies are now closer to earth than the photon,
+        // mark these as visible
+
+        double d_photon_si, t_photon_si;
+        double d_photon, t_photon;
+        double h_si, sf;
+        int idx, num_visible;
+        double d_min, d_max;
+
+        d_photon_si = 0;
+        t_photon_si = t_working * S_PER_BYR;
+        idx = 0;
+        num_visible = 0;
+        d_min = 99999999;
+        d_max = 0;
+
+        while (true) {
+            h_si  = get_hsi(t_photon_si - DELTA_T_SECS);
+            d_photon_si = (d_photon_si + c_si * DELTA_T_SECS) / (1 + h_si * DELTA_T_SECS);
+            t_photon_si -= DELTA_T_SECS;
+
+            d_photon = d_photon_si / M_PER_BLYR;
+            t_photon = t_photon_si / S_PER_BYR;
+
+            sf = get_sf(t_photon);  // xxx check this
+            while (idx < MAX_GALAXY && d_photon > galaxy[idx].d * sf) {  // xxx optimize this line ?
+                if (t_photon > galaxy[idx].t_create) {
+                    galaxy[idx].t_visible = t_photon;
+                    num_visible++;
+                    if (d_photon < d_min) d_min = d_photon;
+                    if (d_photon > d_max) d_max = d_photon;
+                }
+                idx++;
+            }
+
+            if (t != t_working) {
+                printf("RESTARTING because t=%f not equal t_working=%f\n", t, t_working);
+                goto restart;
+            }
+            if (t_photon < 0.75) {
+                printf("DONE because t_photon < 0.75, num_visible=%d\n", num_visible);
+                break;
+            }
+            if (idx == MAX_GALAXY) {
+                printf("DONE because idx == MAX_GALAXY, num_visible=%d\n", num_visible);
+                break;
+            }
+        }
+
+        t_computed = t_working;
+        printf("DONE for t = %f - %f %f\n", t_computed, d_min, d_max);
+        continue;
     }
-#endif
 }
 
 void sim_reset(void)
 {
     t            = 13.8;  // xxx
-    //temperature  = 2.7;
-    disp_width   = 30; 
+    disp_width   = 93;   //xxx
 
     graph_t *g;
 
@@ -438,8 +444,16 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         sdl_render_fill_rect(pane, &(rect_t){0,0,pane->w, pane->h}, yellow[yidx]);
 
         // xxx
-        point_t points[500];
-        int n = 0;
+// xxx 1 is visible
+// xxx 2 not visible
+        #define MAX_POINTS 500
+
+        point_t points1[MAX_POINTS];
+        int n1 = 0, color1 = SDL_WHITE;
+
+        point_t points2[MAX_POINTS];
+        int n2 = 0, color2 = SDL_BLUE;
+
         int ctr = pane->w/2;
         double scale = pane->w/disp_width;
         double sf = get_sf(t);
@@ -447,10 +461,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         for (int i = 0; i < MAX_GALAXY; i++) {
             galaxy_t *g = &galaxy[i];
 
-            // xxx do a square instead of a circle
             if (g->d * sf > disp_width * .7071) {
-                sdl_render_points(pane, points, n, SDL_WHITE, 1);
-                n = 0;
                 break;
             }
 
@@ -458,39 +469,45 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
                 continue;
             }
 
-            points[n].x = ctr + (g->x * sf) * scale;
-            points[n].y = ctr + (g->y * sf) * scale;
-            n++;
-            if (n == ARRAY_SIZE(points)) {
-                sdl_render_points(pane, points, n, SDL_WHITE, 1);
-                n = 0;
+            point_t *p = (g->t_visible ? points1 : points2);
+            int *n     = (g->t_visible ? &n1 : &n2);
+            int color  = (g->t_visible ? color1 : color2);
+            
+            p[*n].x = ctr + (g->x * sf) * scale;
+            p[*n].y = ctr + (g->y * sf) * scale;
+            *n = *n + 1;
+            if (*n == MAX_POINTS) {
+                sdl_render_points(pane, p, *n, color, 1);
+                *n = 0;
             }
-        }
-
-        // display blue point at center, representing location of the observer
-        sdl_render_point(pane, pane->w/2, pane->h/2, SDL_LIGHT_BLUE, 8);
-
 
 #if 0
-        // display points surrouding the observer; 
-        // these points represent the position of the CMB photons as they move due to
-        // their velocity (c) toward the observer and the expansion of space
-        // which is away from the observer
-        for (int deg = 0; deg < 360; deg += 45) {
-            int x,y;
-            x = pane->w/2 + d_photon * (pane->w / disp_width) * cos(DEG2RAD(deg));
-            y = pane->h/2 + d_photon * (pane->h / disp_width) * sin(DEG2RAD(deg));
-            sdl_render_point(pane, x, y, SDL_BLUE, 3);
+            points1[n1].x = ctr + (g->x * sf) * scale;
+            points1[n1].y = ctr + (g->y * sf) * scale;
+            n1++;
+            if (n1 == ARRAY_SIZE(points1)) {
+                sdl_render_points(pane, points1, n10, color1, 1);
+                n1 = 0;
+            }
+#endif
         }
+        sdl_render_points(pane, points1, n1, color1, 1);
+        sdl_render_points(pane, points2, n2, color2, 1);
+
 
         // display a circle around the observer, representing the current position
         // of the space from which the CMB photons originated
+        double diameter = get_diameter(t,NULL,NULL);
         sdl_render_circle(
-            pane, 
+            pane,
             pane->w / 2, pane->h / 2,
-            d_space * (pane->w / disp_width),
-            5, SDL_BLUE);
-#endif
+            diameter/2 * (pane->w / disp_width),
+            5, SDL_RED);
+
+
+
+        // display blue point at center, representing location of the observer
+        sdl_render_point(pane, pane->w/2, pane->h/2, SDL_LIGHT_BLUE, 8);
 
         // display the control string and register the SDL_EVENT_CTRL
         ctrl_str = (state == RESET    ? "RUN"    :
