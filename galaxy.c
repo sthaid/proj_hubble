@@ -1,4 +1,5 @@
-// xxx
+// xxx  todo
+//   glitch in the first visible galaxy
 
 #include <common.h>
 #include <util_sdl.h>
@@ -7,69 +8,80 @@
 // defines
 //
 
-#define FONT_SZ 24
+#define STATE_RESET    0
+#define STATE_RUNNING  1
+#define STATE_PAUSED   2
+#define STATE_DONE     3
 
-#define DEG2RAD(deg)  ((deg) * (M_PI / 180))
-
-#define MAX_GRAPH_POINTS 796 // xxx assert
-
-// xxx may not need
 #define STATE_STR(x) \
-    ((x) == RESET   ? "RESET"   : \
-     (x) == RUNNING ? "RUNNING" : \
-     (x) == PAUSED  ? "PAUSED"  : \
-     (x) == DONE    ? "DONE"    : \
-                      (assert(0),""))
+    ((x) == STATE_RESET   ? "RESET"   : \
+     (x) == STATE_RUNNING ? "RUNNING" : \
+     (x) == STATE_PAUSED  ? "PAUSED"  : \
+     (x) == STATE_DONE    ? "DONE"    : \
+                            (assert(0),""))
+
+#define MAX_GALAXY 1000000
+
+#define MB 0x100000
+#define FONT_SZ 24
+#define DEG2RAD(deg)  ((deg) * (M_PI / 180))
 
 //
 // typdedefs
 // 
 
-typedef enum {RESET, RUNNING, PAUSED, DONE} state_t;
+typedef struct {
+    float x;
+    float y;
+    float d;
+    float t_create;
+    float t_visible;
+} galaxy_t;
 
 typedef struct {
+    bool exists;
     char *x_str;
     char *y_str;
     double max_xval;
     double max_yval;
     double x_cursor;
-    struct {
-        double x;
-        double y;
-    } p[MAX_GRAPH_POINTS];
-    int n;
+    double (*getval)(double x);
 } graph_t;
-
-// xxx ADD_GRAPH_POINT
 
 //
 // variables
 //
 
-int win_width, win_height;
-double disp_width;
+static int       win_width, win_height;
+static double    disp_width;
 
-state_t state;
+static int       state;
 
-double  t;
-int     num_visible;
+static galaxy_t *galaxy;
 
-graph_t graph[4];
+static double    t;
+static int       num_visible;
+
+static graph_t   graph[4];
 
 //
 // prototypes
 //
 
-void galaxy_sim_init(void);
-void *galaxy_sim_thread(void *cx);
-void sim_reset(void);
-void sim_pause(void);
-void sim_resume(void);
+static void galaxy_sim_init(void);
+static void *galaxy_sim_thread(void *cx);
+static void sim_reset(void);
+static void sim_pause(void);
+static void sim_resume(void);
 
-void display_init(void);
-void display_hndlr(void);
-int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event);
-int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event);
+static void display_init(void);
+static void display_hndlr(void);
+static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event);
+static int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event);
+
+static double squared(double x);
+static double get_temperature(double t);
+static int qsort_compare(const void *a, const void *b);
 
 // -----------------  MAIN  ---------------------------------------
   
@@ -86,47 +98,12 @@ int main(int argc, char **argv)
 
 // -----------------  CMB SIM  ------------------------------------
 
-static double get_temperature(double t)
-{
-    double temp;
-
-    temp = TEMP_START / (get_sf(t) / get_sf(T_START));
-    return temp;
-}
-
-#define MB 0x100000
-#define MAX_GALAXY 1000000
-
-typedef struct {
-    float x;
-    float y;
-    float d;
-    float t_create;
-    float t_visible;
-} galaxy_t;
-
-galaxy_t *galaxy;
-
-static double squared(double x)
-{
-    return x * x;
-}
-
-int compare(const void *a, const void *b)
-{
-    const galaxy_t *ga = a;
-    const galaxy_t *gb = b;
-
-    return (ga->d  > gb->d ? 1 :
-            ga->d == gb->d ? 0 :
-                            -1);
-}
-
-void galaxy_sim_init(void)
+static void galaxy_sim_init(void)
 {
     pthread_t tid;
     size_t size;
     int i;
+    graph_t *g;
 
     size = MAX_GALAXY * sizeof(galaxy_t);
     printf("size needed %zd MB\n", size/MB);
@@ -135,7 +112,6 @@ void galaxy_sim_init(void)
         printf("ERROR: failed to allocate memory for galaxy, size needed %zd MB\n", size/MB);
         exit(1);
     }
-    printf("  malloc ret %p\n", galaxy);
 
     printf("INITIALIZING\n");
     for (i = 0; i < MAX_GALAXY; i++) {
@@ -143,21 +119,27 @@ void galaxy_sim_init(void)
         g->x = random_range(-500, 500);
         g->y = random_range(-500, 500);
         g->d = sqrt(squared(g->x) + squared(g->y));
-        g->t_create = random_triangular(0.75, 1.25);
+        //xxx g->t_create = random_triangular(0.75, 1.25);
+        g->t_create = 1;
     }
 
     // sort by distance
     printf("SORTING\n");
-    qsort(galaxy, MAX_GALAXY, sizeof(galaxy_t), compare);
+    qsort(galaxy, MAX_GALAXY, sizeof(galaxy_t), qsort_compare);
     printf("SORTING DONE\n");
 
-#if 0
-    for (i = 0; i < 50; i++) {
-        printf("%d t_create = %f\n", i, galaxy[i].t_create);
-    }
-    exit(1);
-#endif
+    // xxx
+    t = 13.8;  // xxx
 
+    // init graphs
+    g = &graph[0];
+    g->exists    = true;
+    g->x_str     = "T";
+    g->y_str     = "SF";
+    g->max_xval  = 100;
+    g->max_yval  = get_sf(100);  //xxx tmax
+    g->x_cursor  = t;
+    g->getval    = get_sf;
 
     // reset the simulation
     sim_reset();
@@ -166,7 +148,7 @@ void galaxy_sim_init(void)
     pthread_create(&tid, NULL, galaxy_sim_thread, NULL);
 }
 
-void * galaxy_sim_thread(void *cx)
+static void * galaxy_sim_thread(void *cx)
 {
     double t_computed = 0;
     double t_working = 0;
@@ -176,20 +158,9 @@ void * galaxy_sim_thread(void *cx)
             usleep(1000);
         }
 
-//restart:
         t_working = t;
         t_computed = 0;
-        printf("STARTING for t = %f\n", t_working);
-
-        // xxx time this
-
-#if 0
-        printf("CLEARING T_VISIBLE\n");
-        for (int i = 0; i < MAX_GALAXY; i++) {
-            galaxy[i].t_visible = 0;
-        }
-        printf("DONE CLEARING T_VISIBLE\n");
-#endif
+        //printf("STARTING for t = %f\n", t_working);
 
         // backtrack a photon 
         // at each step check to see which galaxies are now closer to earth than the photon,
@@ -222,12 +193,6 @@ void * galaxy_sim_thread(void *cx)
                 idx++;
             }
 
-#if 0
-            if (t != t_working) {
-                printf("RESTARTING\n");
-                goto restart;
-            }
-#endif
             if (t_photon < 0.75) {  // xxx define for 0.75
                 break;
             }
@@ -246,73 +211,35 @@ void * galaxy_sim_thread(void *cx)
         printf("DONE t=%f  t_photon=%f  num_visible=%d\n", 
                t_computed, t_photon, num_visible);
     }
+
+    return NULL;
 }
 
-void add_graph_point(graph_t *g, double x, double y)
+static void sim_reset(void)
 {
-    if (g->n >= MAX_GRAPH_POINTS) {
-        printf("ERROR graph full\n");
-        return;
-    }
-    g->p[g->n].x = x;
-    g->p[g->n].y = y;
-    g->n++;
+    t          = 13.8;  // xxx
+    disp_width = get_diameter(t,NULL,NULL);  // xxx tracking mode
+
+    graph[0].x_cursor = t;
 }
 
-void sim_reset(void)
+static void sim_pause(void)
 {
-    t            = 13.8;  // xxx
-    disp_width   = get_diameter(t,NULL,NULL);
-
-    graph_t *g;
-
-#if 0
-typedef struct {
-    char *x_str;
-    char *y_str;
-    double max_xval;
-    double max_yval;
-    double x_cursor;
-    struct {
-        double x;
-        double y;
-    } p[MAX_GRAPH_POINTS];
-    int n; 
-} graph_t;
-#endif
-
-    g = &graph[0];
-    g->x_str     = "T";
-    g->y_str     = "SF";
-    g->max_xval  = 100;
-    g->max_yval  = get_sf(100);  // xxx tmax
-    g->x_cursor  = t;
-
-    // xxx move graphs to sim_init?
-    for (int i = 0; i < MAX_GRAPH_POINTS; i++) {
-        double ti = i * (100. / MAX_GRAPH_POINTS);
-        if (ti < T_START) continue;
-        add_graph_point(g, ti, get_sf(ti));
+    if (state == STATE_RUNNING) {
+        state = STATE_PAUSED;
     }
 }
 
-void sim_pause(void)
+static void sim_resume(void)
 {
-    if (state == RUNNING) {
-        state = PAUSED;
-    }
-}
-
-void sim_resume(void)
-{
-    if (state == RESET || state == PAUSED) {
-        state = RUNNING;
+    if (state == STATE_RESET || state == STATE_PAUSED) {
+        state = STATE_RUNNING;
     }
 }
 
 // -----------------  DISPLAY  ------------------------------------
 
-void display_init(void)
+static void display_init(void)
 {
     bool fullscreen = false;
     bool resizeable = false;
@@ -338,7 +265,7 @@ void display_init(void)
     }
 }
 
-void display_hndlr(void)
+static void display_hndlr(void)
 {
     assert(win_width == 2*win_height);
 
@@ -368,7 +295,9 @@ void display_hndlr(void)
         );
 }
 
-int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event)
+// - - - - - - - - -  MAIN PANE HNDLR  - - - - - - - - - - - -
+
+static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event)
 {
     struct {
         int nothing_yet;
@@ -421,16 +350,14 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         sdl_render_fill_rect(pane, &(rect_t){0,0,pane->w, pane->h}, yellow[yidx]);
 
         // xxx
-// xxx 1 is visible
-// xxx 2 not visible
-        #define MAX_POINTS 500
+        // xxx 1 is visible
+        // xxx 2 not visible
+        #define MAX_GALAXY_POINTS 500
 
-        point_t points1[MAX_POINTS];
+        point_t points1[MAX_GALAXY_POINTS];
         int n1 = 0, color1 = SDL_WHITE;
-
-        point_t points2[MAX_POINTS];
+        point_t points2[MAX_GALAXY_POINTS];
         int n2 = 0, color2 = SDL_BLUE;
-
         int ctr = pane->w/2;
         double scale = pane->w/disp_width;
         double sf = get_sf(t);
@@ -453,32 +380,35 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             p[*n].x = ctr + (g->x * sf) * scale;
             p[*n].y = ctr + (g->y * sf) * scale;
             *n = *n + 1;
-            if (*n == MAX_POINTS) {
+            if (*n == MAX_GALAXY_POINTS) {
                 sdl_render_points(pane, p, *n, color, 1);
                 *n = 0;
             }
         }
+
         sdl_render_points(pane, points1, n1, color1, 1);
         sdl_render_points(pane, points2, n2, color2, 1);
 
         // display a circle around the observer, representing the current position
         // of the space from which the CMB photons originated
         double diameter = get_diameter(t,NULL,NULL);
-        sdl_render_circle(
-            pane,
-            pane->w / 2, pane->h / 2,
-            diameter/2 * (pane->w / disp_width),
-            5, SDL_RED);
+        if (diameter > 0) {
+            sdl_render_circle(
+                pane,
+                pane->w / 2, pane->h / 2,
+                diameter/2 * (pane->w / disp_width),
+                5, SDL_RED);
+        }
 
         // display blue point at center, representing location of the observer
         sdl_render_point(pane, pane->w/2, pane->h/2, SDL_LIGHT_BLUE, 8);
 
         // display the control string and register the SDL_EVENT_CTRL
-        ctrl_str = (state == RESET    ? "RUN"    :
-                    state == PAUSED   ? "RESUME" :
-                    state == RUNNING  ? "PAUSE"  :
-                    state == DONE     ? "RESET"  :
-                                        (assert(0), ""));
+        ctrl_str = (state == STATE_RESET    ? "RUN"    :
+                    state == STATE_PAUSED   ? "RESUME" :
+                    state == STATE_RUNNING  ? "PAUSE"  :
+                    state == STATE_DONE     ? "RESET"  :
+                                              (assert(0), ""));
         sdl_render_text_and_register_event(
             pane, 0, 0, FONT_SZ, ctrl_str, SDL_LIGHT_BLUE, SDL_BLACK, 
             SDL_EVENT_CTRL, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
@@ -528,9 +458,9 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             // the SDL_EVENT_CTRL or the space-bar are used to
             // control the state of the simulation (resume, pause, reset)
             // xxx needed?
-            if (state == RESET || state == PAUSED) {
+            if (state == STATE_RESET || state == STATE_PAUSED) {
                 sim_resume();
-            } else if (state == RUNNING) {
+            } else if (state == STATE_RUNNING) {
                 sim_pause();
             } else {
                 sim_reset();
@@ -585,7 +515,6 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             if (tt > 100) tt = 100;
             t = tt;
             disp_width = get_diameter(t,NULL,NULL);  // xxx tracking mode
-                // xxx WARNING: time 0.007411 not in diameter tbl
             graph[0].x_cursor = t;
             break;
         default: 
@@ -609,12 +538,18 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
     return PANE_HANDLER_RET_NO_ACTION;
 }
 
-int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event)
+// - - - - - - - - -  GRAPH PANE HNDLR  - - - - - - - - - - - -
+
+static int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event)
 {
     struct {
         int graph_idx;
     } * vars = pane_cx->vars;
     rect_t * pane = &pane_cx->pane;
+
+    #define MAX_GRAPH_POINTS 796
+
+    assert(pane->w == MAX_GRAPH_POINTS);
 
     // ----------------------------
     // -------- INITIALIZE --------
@@ -635,21 +570,25 @@ int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_e
     // -------- RENDER --------
     // ------------------------
 
-#define MAX_GP 1000 // xxx
 
     if (request == PANE_HANDLER_REQ_RENDER) {
         graph_t *g = &graph[vars->graph_idx];
-        point_t  points[MAX_GP];
+        point_t  points[MAX_GRAPH_POINTS];
         char str[100];
-        int xi, yi;
+        int xi;
+
+        if (!g->exists) {
+            return PANE_HANDLER_RET_NO_ACTION;
+        }
 
         // create the array of graph points that are to be displayed
-        for (int i = 0; i < g->n; i++) {
-            points[i].x = (g->p[i].x / g->max_xval) * pane->w ;
+        for (int i = 0; i < MAX_GRAPH_POINTS; i++) {
+            double x = (i + 0.5) * (g->max_xval / MAX_GRAPH_POINTS);
+            points[i].x = i;
             points[i].y = (pane->h - 1) -
-                          ((g->p[i].y / g->max_yval) * (pane->h - ROW2Y(1,FONT_SZ)));
+                          ((g->getval(x) / g->max_yval) * (pane->h - ROW2Y(1,FONT_SZ)));
         }
-        sdl_render_points(pane, points, g->n, SDL_WHITE, 1);
+        sdl_render_points(pane, points, MAX_GRAPH_POINTS, SDL_WHITE, 1);
 
         // print max_yval
         sdl_render_printf(pane, 0, ROW2Y(1,FONT_SZ), 
@@ -663,41 +602,20 @@ int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_e
                           "%s", str);
 
         // display cursor
-        xi = (g->x_cursor / g->max_xval) * pane->w;
-        sdl_render_line(pane, xi-0, pane->h-1, xi-0, ROW2Y(1,FONT_SZ), SDL_WHITE);
+        xi = (g->x_cursor / g->max_xval) * MAX_GRAPH_POINTS;
+        sdl_render_line(pane, xi-1, pane->h-1, xi-1, ROW2Y(2,FONT_SZ), SDL_WHITE);
+        sdl_render_line(pane, xi-0, pane->h-1, xi-0, ROW2Y(2,FONT_SZ), SDL_WHITE);
+        sdl_render_line(pane, xi+1, pane->h-1, xi+1, ROW2Y(2,FONT_SZ), SDL_WHITE);
 
         // display title
-#if 0
-        int x = MAX_GRAPH_POINTS * (t / 100-1e-6);
-        int y = (pane->h - 1) - ((g->y[x] / g->max_yval) * (0.85 * pane->h));
-        sdl_render_line(pane, x+0, y+20, x+0, y-20, SDL_WHITE);
-        sdl_render_line(pane, x-1, y+20, x-1, y-20, SDL_WHITE);
-        sdl_render_line(pane, x+1, y+20, x+1, y-20, SDL_WHITE);
-#endif
-
-#if 0
-        //int x = MAX_GRAPH_POINTS * (g->x / g->max_xval)
-        double y = 
+        double y = g->getval(g->x_cursor);
         sprintf(str, "%s=%0.*f  %s=%0.*f", 
-                g->x_str, PRECISION(g->x), g->x,
-                g->y_str, PRECISION(y), y);
+               g->x_str, PRECISION(g->x_cursor), g->x_cursor,
+               g->y_str, PRECISION(y), y);
+
         sdl_render_printf(pane, COL2X(8,FONT_SZ), 0, 
                           FONT_SZ, SDL_WHITE, SDL_BLACK,
                           "%s", str);
-#endif
-
-#if 0
-        // display the title line xxx needs work
-        int t_precision = (t < .001 ? 6 : t < 1 ? 3 : 1);
-        sdl_render_printf(
-              pane, COL2X(2,FONT_SZ), 0, FONT_SZ,
-              SDL_WHITE, SDL_BLACK, 
-              "%s %0.*f%s - T %0.*f BYR - YMAX %0.*f",
-              g->title, g->precision, g->y[last_i], g->units,
-              t_precision, t,
-              g->precision, g->max_yval);
-#endif
-
 
         return PANE_HANDLER_RET_NO_ACTION;
     }
@@ -724,3 +642,28 @@ int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_e
     return PANE_HANDLER_RET_NO_ACTION;
 }
 
+// -----------------  SUPPORT / UTILS  ----------------------------
+
+static double squared(double x)
+{
+    return x * x;
+}
+
+
+static double get_temperature(double t)
+{
+    double temp;
+
+    temp = TEMP_START / (get_sf(t) / get_sf(T_START));
+    return temp;
+}
+
+static int qsort_compare(const void *a, const void *b)
+{
+    const galaxy_t *ga = a;
+    const galaxy_t *gb = b;
+
+    return (ga->d  > gb->d ? 1 :
+            ga->d == gb->d ? 0 :
+                            -1);
+}

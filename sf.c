@@ -236,6 +236,10 @@ double get_sf(double t)
 {
     double a;
 
+    if (t < T_START) {
+        return 0;
+    }
+
     if (t >= JOIN_START && t < JOIN_END) {
         a = join_get_y(t);
     } else if (t < 9.8) {  // t >= .000380 && t < 9.8
@@ -378,14 +382,8 @@ static void get_diameter_init(void)
     double t, t_incr;
     double diameter, d_backtrack_end, max_photon_distance;
     int cnt=0;
+    const double e=1e-6;
     #define MAX_TBL 100000
-
-    // create empty file sf.dat
-    fd = open(filename, O_WRONLY|O_CREAT|O_EXCL, 0644);
-    if (fd < 0) {
-        printf("ERROR: create %s, %s\n", filename, strerror(errno));
-        exit(1);
-    }
 
     // allocate memory to save the results, an excessive allocation (MAX_TBL) is used
     tbl = calloc(MAX_TBL, sizeof(diameter_t));
@@ -398,9 +396,9 @@ static void get_diameter_init(void)
     // calculate the diameter, d_backtrack_end and max_photon_distance for 
     // range of times from .01 to 200 BYR
     printf("creating diameter table file %s ...\n", filename);
-    for (t = .01; t < 200; t += t_incr) {
+    for (t = T_START; t <= 101; t += t_incr) {
         diameter = get_diameter_ex(t, &d_backtrack_end, &max_photon_distance);
-        printf("  %d - t=%f diameter=%f\n", ++cnt, t, diameter);
+        printf("  %d - t=%0.6f diameter=%f\n", ++cnt, t, diameter);
 
         if (max_tbl >= MAX_TBL) {
             printf("ERROR: diamter tbl is full\n");
@@ -413,20 +411,28 @@ static void get_diameter_init(void)
         tbl[max_tbl].max_photon_distance = max_photon_distance;
         max_tbl++;
 
-        t_incr = (t < 0.1 ? .001 :
-                  t < 1.0 ? .01 :
-                            .1);
+        t_incr = (t < 0.01-e ? DELTA_T_SECS/S_PER_BYR :
+                  t < 0.1-e  ? 0.001 :
+                  t < 1.0-e  ? 0.01  :
+                             0.1);
     }
 
     // write tbl of results to file sf.dat
+    fd = open(filename, O_WRONLY|O_CREAT|O_EXCL, 0644);
+    if (fd < 0) {
+        printf("ERROR: create %s, %s\n", filename, strerror(errno));
+        exit(1);
+    }
+
     len = write(fd, tbl, max_tbl*sizeof(diameter_t));
     if (len != max_tbl*sizeof(diameter_t)) {
         printf("ERROR: write tbl to %s, %s\n", filename, strerror(errno));
         exit(1);
     }
 
-    // close fd, and exit program
     close(fd);
+
+    // close fd, and exit program
     printf("diameter table file %s has been created;\n", filename);
     printf("program must be restarted\n");
     exit(0);
@@ -521,6 +527,17 @@ double get_diameter_ex(double t_backtrack_start, double *d_backtrack_end_arg, do
     double t_si, d_photon_si, h_si;
     double d_backtrack_end, t_backtrack_end, diameter;
     double max_d_photon_si;
+
+    // xxx
+    if (t_backtrack_start < T_START+DELTA_T_SECS/S_PER_BYR/2) {
+        if (d_backtrack_end_arg) {
+            *d_backtrack_end_arg = 0;
+        }
+        if (max_photon_distance) {
+            *max_photon_distance = 0;
+        }
+        return 0;
+    }
 
     // init
     t_si = t_backtrack_start * S_PER_BYR;  // secs
