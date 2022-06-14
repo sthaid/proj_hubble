@@ -119,8 +119,7 @@ static void galaxy_sim_init(void)
         g->x = random_range(-500, 500);
         g->y = random_range(-500, 500);
         g->d = sqrt(squared(g->x) + squared(g->y));
-        //xxx g->t_create = random_triangular(0.75, 1.25);
-        g->t_create = 1;
+        g->t_create = random_triangular(0.75, 1.25);
     }
 
     // sort by distance
@@ -189,6 +188,8 @@ static void * galaxy_sim_thread(void *cx)
                 if (t_photon > galaxy[idx].t_create) {  //xxx
                     galaxy[idx].t_visible = t_photon;
                     lcl_num_visible++;
+                } else {
+                    galaxy[idx].t_visible = 0;
                 }
                 idx++;
             }
