@@ -10,6 +10,7 @@
 
 // diametet tracking
 // 
+// lock main pane to front
 
 #include <common.h>
 #include <util_sdl.h>
@@ -86,9 +87,9 @@ static graph_t   graph[4];
 
 static void galaxy_sim_init(void);
 static void *galaxy_sim_thread(void *cx);
-static void sim_reset(void);
-static void sim_pause(void);
-static void sim_resume(void);
+//static void sim_reset(void);
+//static void sim_pause(void);
+//static void sim_resume(void);
 
 static void display_init(void);
 static void display_hndlr(void);
@@ -113,6 +114,8 @@ int main(int argc, char **argv)
 }
 
 // -----------------  CMB SIM  ------------------------------------
+
+double t_computed = 0;
 
 static void galaxy_sim_init(void)
 {
@@ -145,6 +148,7 @@ static void galaxy_sim_init(void)
 
     // xxx
     t = 13.8;  // xxx
+    disp_width = get_diameter(t,NULL,NULL);  // xxx tracking mode
 
     // init scale factor graph
     g = &graph[0];
@@ -194,16 +198,31 @@ static void galaxy_sim_init(void)
     }
     g->n = MAX_GRAPH_POINTS;
 
-    // reset the simulation
-    sim_reset();
-
     // create the cmd_sim_thread
     pthread_create(&tid, NULL, galaxy_sim_thread, NULL);
+
+    for (t = 1; t <= 100; t += 5) {
+        while (t_computed != t) {
+            usleep(1000);
+        }
+        int j = (t_computed / 100.00001) * MAX_GRAPH_POINTS;
+        if (j >= MAX_GRAPH_POINTS) {
+            printf("ERROR: BUG j %d\n", j);
+        } else {
+            graph[2].p[j].y = num_visible;
+            printf("t=%f  num_vis=%d\n", t, num_visible);
+        }
+    }
+
+    t = 13.8;  // xxx
+    disp_width = get_diameter(t,NULL,NULL);  // xxx tracking mode
+    // reset the simulation
+    //sim_reset();
+
 }
 
 static void * galaxy_sim_thread(void *cx)
 {
-    double t_computed = 0;
     double t_working = 0;
 
     while (true) {
@@ -261,14 +280,19 @@ static void * galaxy_sim_thread(void *cx)
         }
 
         num_visible = lcl_num_visible;
+        __sync_synchronize();
         t_computed = t_working;
 
+#if 0
         int j = (t_computed / 100.00001) * MAX_GRAPH_POINTS;
         if (j >= MAX_GRAPH_POINTS) {
             printf("ERROR: BUG j %d\n", j);
         } else {
             graph[2].p[j].y = num_visible;
         }
+#endif
+        // xxx temp
+        graph[2].y_cursor = num_visible;
 
         printf("DONE t=%f  t_photon=%f  num_visible=%d\n", 
                t_computed, t_photon, num_visible);
@@ -277,6 +301,8 @@ static void * galaxy_sim_thread(void *cx)
     return NULL;
 }
 
+#if 0
+// xxx may not need any of this
 static void sim_reset(void)
 {
     t          = 13.8;  // xxx
@@ -305,6 +331,7 @@ static void sim_resume(void)
         state = STATE_RUNNING;
     }
 }
+#endif
 
 // -----------------  DISPLAY  ------------------------------------
 
@@ -373,10 +400,10 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
     } * vars = pane_cx->vars;
     rect_t * pane = &pane_cx->pane;
 
-    #define SDL_EVENT_CTRL      (SDL_EVENT_USER_DEFINED + 0)
-    #define SDL_EVENT_ZOOM      (SDL_EVENT_USER_DEFINED + 1)
-    #define SDL_EVENT_RESET     (SDL_EVENT_USER_DEFINED + 2)
-    #define SDL_EVENT_RESET_DW  (SDL_EVENT_USER_DEFINED + 3)
+    //#define SDL_EVENT_CTRL      (SDL_EVENT_USER_DEFINED + 0)
+    //#define SDL_EVENT_ZOOM      (SDL_EVENT_USER_DEFINED + 1)
+    //#define SDL_EVENT_RESET     (SDL_EVENT_USER_DEFINED + 2)
+    //#define SDL_EVENT_RESET_DW  (SDL_EVENT_USER_DEFINED + 3)
 
     #define PRECISION(x) ((x) == 0 ? 0 : (x) < .001 ? 6 : (x) < 1 ? 3 : (x) < 100 ? 1 : 0)
 
@@ -406,7 +433,7 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
 
     if (request == PANE_HANDLER_REQ_RENDER) {
         int yidx;
-        char *ctrl_str;
+        //char *ctrl_str;
         char title_str[100];
         int len;
 
@@ -472,6 +499,7 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
         // display blue point at center, representing location of the observer
         sdl_render_point(pane, pane->w/2, pane->h/2, SDL_LIGHT_BLUE, 8);
 
+#if 0
         // display the control string and register the SDL_EVENT_CTRL
         ctrl_str = (state == STATE_RESET    ? "RUN"    :
                     state == STATE_PAUSED   ? "RESUME" :
@@ -496,6 +524,7 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
         // display width scale using the mouse wheel
         sdl_register_event(pane, &(rect_t){0,0,pane->w,pane->h}, 
             SDL_EVENT_ZOOM, SDL_EVENT_TYPE_MOUSE_WHEEL, pane_cx);
+#endif
 
         // display current state at top middle
         sprintf(title_str, "%s  DISPLAY_WIDTH=%0.*f",\
@@ -525,6 +554,7 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
 
     if (request == PANE_HANDLER_REQ_EVENT) {
         switch (event->event_id) {
+#if 0
         case SDL_EVENT_CTRL: case ' ':
             // the SDL_EVENT_CTRL or the space-bar are used to
             // control the state of the simulation (resume, pause, reset)
@@ -545,6 +575,7 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
             // the SDL_EVENT_RESET_DW or 'R', resets the display_width
             disp_width = get_diameter(t,NULL,NULL);
             break;
+#endif
 #if 0
         case SDL_EVENT_ZOOM: ;
             // SDL_EVENT_ZOOM provides fine grain control of the display width
