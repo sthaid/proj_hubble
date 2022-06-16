@@ -1,6 +1,7 @@
 // xxx
 // - README
 // - should reset the display_width
+// - match colors and other attribues with galaxy.c
 
 #include <common.h>
 #include <util_sdl.h>

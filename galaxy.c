@@ -314,8 +314,6 @@ static void display_hndlr(void)
 {
     assert(win_width == 2*win_height);
 
-    // XXX xxx move main_pane to first, and/or lock it to the front
-
     // call the pane manger; 
     // - this will not return except when it is time to terminate the program
     sdl_pane_manager(

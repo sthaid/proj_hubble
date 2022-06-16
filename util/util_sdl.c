@@ -409,8 +409,10 @@ void sdl_pane_manager(void *display_cx,                        // optional, cont
                                       true,   // clear
                                       &loc_full_pane, &loc_bar_move, &loc_bar_terminate);
 
+#if 0  // prevent panes from being re-ordered; the last pane passed to sdl_pane_manager will remain in foreground
             sdl_register_event(&pane_cx->pane, &loc_full_pane, SDL_EVENT_PANE_SELECT, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
             sdl_register_event(&pane_cx->pane, &loc_full_pane, SDL_EVENT_PANE_BACKGROUND, SDL_EVENT_TYPE_MOUSE_RIGHT_CLICK, pane_cx);
+#endif
             sdl_register_event(&pane_cx->pane, &loc_bar_move, SDL_EVENT_PANE_MOVE, SDL_EVENT_TYPE_MOUSE_MOTION, pane_cx);
             sdl_register_event(&pane_cx->pane, &loc_bar_terminate, SDL_EVENT_PANE_TERMINATE, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
 
