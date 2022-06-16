@@ -292,10 +292,9 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
     } * vars = pane_cx->vars;
     rect_t * pane = &pane_cx->pane;
 
-    #define SDL_EVENT_CTRL      (SDL_EVENT_USER_DEFINED + 0)
-    #define SDL_EVENT_ZOOM      (SDL_EVENT_USER_DEFINED + 1)
-    #define SDL_EVENT_RESET     (SDL_EVENT_USER_DEFINED + 2)
-    #define SDL_EVENT_RESET_DW  (SDL_EVENT_USER_DEFINED + 3)
+    #define SDL_EVENT_CTRL             (SDL_EVENT_USER_DEFINED + 0)
+    #define SDL_EVENT_ZOOM             (SDL_EVENT_USER_DEFINED + 1)
+    #define SDL_EVENT_RESET            (SDL_EVENT_USER_DEFINED + 2)
 
     #define PRECISION(x) ((x) == 0 ? 0 : (x) < .001 ? 6 : (x) < 1 ? 3 : (x) < 100 ? 1 : 0)
 
@@ -336,7 +335,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         sdl_render_fill_rect(pane, &(rect_t){0,0,pane->w, pane->h}, yellow[yidx]);
 
         // display blue point at center, representing location of the observer
-        sdl_render_point(pane, pane->w/2, pane->h/2, SDL_LIGHT_BLUE, 8);
+        sdl_render_point(pane, pane->w/2, pane->h/2, SDL_LIGHT_BLUE, 6);
 
         // display points surrouding the observer; 
         // these points represent the position of the CMB photons as they move due to
@@ -346,7 +345,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             int x,y;
             x = pane->w/2 + d_photon * (pane->w / disp_width) * cos(DEG2RAD(deg));
             y = pane->h/2 + d_photon * (pane->h / disp_width) * sin(DEG2RAD(deg));
-            sdl_render_point(pane, x, y, SDL_BLUE, 3);
+            sdl_render_point(pane, x, y, SDL_RED, 3);
         }
 
         // display a circle around the observer, representing the current position
@@ -355,7 +354,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             pane, 
             pane->w / 2, pane->h / 2,
             d_space * (pane->w / disp_width),
-            5, SDL_BLUE);
+            5, SDL_RED);
 
         // display the control string and register the SDL_EVENT_CTRL
         ctrl_str = (state == RESET    ? "RUN"    :
@@ -369,13 +368,9 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
 
         // register the SDL_EVENT_RESET, which resets the simulation
         sdl_render_text_and_register_event(
-                pane, pane->w-COL2X(8,FONT_SZ), 0, FONT_SZ, "RESET", SDL_LIGHT_BLUE, SDL_BLACK, 
+                pane, pane->w-COL2X(5,FONT_SZ), ROW2Y(0,FONT_SZ), FONT_SZ, 
+                "RESET", SDL_LIGHT_BLUE, SDL_BLACK, 
                 SDL_EVENT_RESET, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
-
-        // register the SDL_EVENT_RESET_DW, which resets the display width
-        sdl_render_text_and_register_event(
-                pane, pane->w-COL2X(8,FONT_SZ), ROW2Y(2,FONT_SZ), FONT_SZ, "RESET_DW", SDL_LIGHT_BLUE, SDL_BLACK, 
-                SDL_EVENT_RESET_DW, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
 
         // register the SDL_EVENT_ZOOM which is used to adjust the 
         // display width scale using the mouse wheel
@@ -426,7 +421,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
 
     if (request == PANE_HANDLER_REQ_EVENT) {
         switch (event->event_id) {
-        case SDL_EVENT_CTRL: case ' ':
+        case SDL_EVENT_CTRL: case 'x':
             // the SDL_EVENT_CTRL or the space-bar are used to
             // control the state of the simulation (resume, pause, reset)
             if (state == RESET || state == PAUSED) {
@@ -441,10 +436,6 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             // the SDL_EVENT_RESET or 'r', resets the simulation
             sim_reset();
             break;
-        case SDL_EVENT_RESET_DW: case 'R':
-            // the SDL_EVENT_RESET_DW or 'R', resets the display_width
-            disp_width = get_diameter(t_done, NULL, NULL);
-            break;
         case SDL_EVENT_ZOOM: ;
             // SDL_EVENT_ZOOM provides fine grain control of the display width
             double dy = -event->mouse_wheel.delta_y;
@@ -456,38 +447,31 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             if (dy == -1) disp_width = ceil(disp_width);
             if (disp_width < .01) disp_width = .01;
             break;
-        case SDL_EVENT_KEY_LEFT_ARROW:
-        case SDL_EVENT_KEY_RIGHT_ARROW: ;
-            // the left/right arrow keys provide coarse control of the display width
-            double delta = (disp_width >= 1000 ? 100 : 
-                            disp_width >=  100 ? 10  :
-                            disp_width >=   10 ? 1  :
-                                                 .1);
-            if (event->event_id == SDL_EVENT_KEY_LEFT_ARROW) {
-                disp_width -= delta;
-                if (delta >= 1) {
-                    disp_width = delta*ceil(disp_width/delta);
-                }
-                if (disp_width < .100001) disp_width = .1;
-            } else {
-                disp_width += delta;
-                if (delta >= 1) {
-                    disp_width = delta*floor(disp_width/delta);
-                }
+        case SDL_EVENT_KEY_UP_ARROW:
+        case SDL_EVENT_KEY_DOWN_ARROW: ;
+        case SDL_EVENT_KEY_SHIFT_UP_ARROW:
+        case SDL_EVENT_KEY_SHIFT_DOWN_ARROW: ;
+            // the up/down arrow keys provide control of the display width
+            switch (event->event_id) {
+            case SDL_EVENT_KEY_UP_ARROW:         disp_width *= 1.01; break;
+            case SDL_EVENT_KEY_DOWN_ARROW:       disp_width /= 1.01; break;
+            case SDL_EVENT_KEY_SHIFT_UP_ARROW:   disp_width *= 1.1;  break;
+            case SDL_EVENT_KEY_SHIFT_DOWN_ARROW: disp_width /= 1.1;  break;
             }
             break;
-        case SDL_EVENT_KEY_UP_ARROW:
-        case SDL_EVENT_KEY_DOWN_ARROW:
-            // the up/down arrow keys adjust t_done
+        case SDL_EVENT_KEY_RIGHT_ARROW:
+        case SDL_EVENT_KEY_LEFT_ARROW:
+        case SDL_EVENT_KEY_SHIFT_RIGHT_ARROW:
+        case SDL_EVENT_KEY_SHIFT_LEFT_ARROW:
+            // the left/right arrow keys adjust t_done
             if (state == RESET) {
-                double delta;
                 double e = 1e-6;
-                delta = (t_done < .001-e ? 0.0001 :
-                         t_done < .01-e  ? 0.001  :
-                         t_done < .1-e   ? 0.01   :
-                         t_done < 15-e   ? 0.1    :
-                                            1.);
-                t_done = t_done + (event->event_id == SDL_EVENT_KEY_UP_ARROW ? delta : -delta);
+                switch (event->event_id) {
+                case SDL_EVENT_KEY_RIGHT_ARROW:       t_done += .1;    break;
+                case SDL_EVENT_KEY_LEFT_ARROW:        t_done -= .1;    break;
+                case SDL_EVENT_KEY_SHIFT_RIGHT_ARROW: t_done += 1;  break;
+                case SDL_EVENT_KEY_SHIFT_LEFT_ARROW:  t_done -= 1;  break;
+                }
                 if (t_done < .1+e) t_done = .1;
                 if (t_done > 100-e) t_done = 100;
                 sim_reset();
