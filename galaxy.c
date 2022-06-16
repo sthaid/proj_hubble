@@ -4,6 +4,9 @@
 //   - diameter
 // - diametet tracking
 // - lock main pane to front
+// - limit on repeat key
+// - linear time option
+// - auto time sweep ??
 
 #include <common.h>
 #include <util_sdl.h>
@@ -145,7 +148,7 @@ static void galaxy_sim_init(void)
 
     // xxx
     t = 13.8;  // xxx
-    disp_width = get_diameter(t,NULL,NULL);  // xxx tracking mode
+    disp_width = get_diameter(t,NULL,NULL);
 
     // init scale factor graph
     g = &graph[0];
@@ -336,11 +339,14 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
     } * vars = pane_cx->vars;
     rect_t * pane = &pane_cx->pane;
 
-    //#define SDL_EVENT_RESET_DW  (SDL_EVENT_USER_DEFINED + 3)
+    #define SDL_EVENT_AUTO_DW    (SDL_EVENT_USER_DEFINED + 0)
+    #define SDL_EVENT_TIME_MODE  (SDL_EVENT_USER_DEFINED + 1)
 
     #define PRECISION(x) ((x) == 0 ? 0 : (x) < .001 ? 6 : (x) < 1 ? 3 : (x) < 100 ? 1 : 0)
 
     static int yellow[256];
+    static bool auto_dw = true;
+    static bool exponential_time = true;
 
     assert(pane->w == pane->h);
 
@@ -431,12 +437,19 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
         // display blue point at center, representing location of the observer
         sdl_render_point(pane, pane->w/2, pane->h/2, SDL_LIGHT_BLUE, 8);
 
-#if 0
-        // register the SDL_EVENT_RESET_DW, which resets the display width
+        // register the SDL_EVENT_AUTO_DW, which xxx
         sdl_render_text_and_register_event(
-                pane, pane->w-COL2X(8,FONT_SZ), ROW2Y(2,FONT_SZ), FONT_SZ, "RESET_DW", SDL_LIGHT_BLUE, SDL_BLACK, 
-                SDL_EVENT_RESET_DW, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
-#endif
+                pane, pane->w-COL2X(14,FONT_SZ), ROW2Y(2,FONT_SZ), FONT_SZ, 
+                (auto_dw ? "AUTO_DW_IS_ON " : "AUTO_DW_IS_OFF"),
+                SDL_LIGHT_BLUE, SDL_BLACK, 
+                SDL_EVENT_AUTO_DW, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
+
+        // xxx
+        sdl_render_text_and_register_event(
+                pane, pane->w-COL2X(14,FONT_SZ), ROW2Y(3,FONT_SZ), FONT_SZ, 
+                (exponential_time ? "TIME_IS_EXP   " : "TIME_IS_LINEAR"),
+                SDL_LIGHT_BLUE, SDL_BLACK, 
+                SDL_EVENT_TIME_MODE, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
 
         // display current state at top middle
         sprintf(title_str, "%s  DISPLAY_WIDTH=%0.*f",\
@@ -472,17 +485,24 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
 
     if (request == PANE_HANDLER_REQ_EVENT) {
         switch (event->event_id) {
-#if 0
-        case SDL_EVENT_RESET_DW: case 'R':
-            // the SDL_EVENT_RESET_DW or 'R', resets the display_width
-            disp_width = get_diameter(t,NULL,NULL);
+        case SDL_EVENT_AUTO_DW:
+            auto_dw = !auto_dw;
+            if (auto_dw) {
+                disp_width = get_diameter(t,NULL,NULL);
+                if (disp_width == 0) disp_width = 1e-7;
+            }
             break;
-#endif
+        case SDL_EVENT_TIME_MODE:
+            exponential_time = !exponential_time;
+            break;
         case SDL_EVENT_KEY_UP_ARROW:
         case SDL_EVENT_KEY_DOWN_ARROW:
         case SDL_EVENT_KEY_SHIFT_UP_ARROW:
         case SDL_EVENT_KEY_SHIFT_DOWN_ARROW:
-            // adjust disp_width
+            // adjust disp_width  use similar method as t
+            if (auto_dw) {
+                break;
+            }
             switch (event->event_id) {
             case SDL_EVENT_KEY_UP_ARROW:         disp_width *= 1.01; break;
             case SDL_EVENT_KEY_DOWN_ARROW:       disp_width /= 1.01; break;
@@ -493,20 +513,50 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
         case SDL_EVENT_KEY_RIGHT_ARROW:
         case SDL_EVENT_KEY_LEFT_ARROW:
         case SDL_EVENT_KEY_SHIFT_RIGHT_ARROW:
-        case SDL_EVENT_KEY_SHIFT_LEFT_ARROW: ;
+        case SDL_EVENT_KEY_SHIFT_LEFT_ARROW:
+        case SDL_EVENT_KEY_INSERT:
+        case SDL_EVENT_KEY_HOME:
+        case SDL_EVENT_KEY_END:;
+            static int tidx = 1055;  // xxx comment, and use define for 100
+
             // adjust t
-            // xxx always use same values
-            double tt = t;
-            switch (event->event_id) {
-            case SDL_EVENT_KEY_RIGHT_ARROW:       tt *= 1.01; break;
-            case SDL_EVENT_KEY_LEFT_ARROW:        tt /= 1.01; break;
-            case SDL_EVENT_KEY_SHIFT_RIGHT_ARROW: tt *= 1.1;  break;
-            case SDL_EVENT_KEY_SHIFT_LEFT_ARROW:  tt /= 1.1;  break;
+            if (event->event_id == SDL_EVENT_KEY_INSERT) {
+                t = .000380;
+                tidx = log(t / .00038) / log(1.01);
+            } else if (event->event_id == SDL_EVENT_KEY_HOME) {
+                t = 13.8;
+                tidx = log(t / .00038) / log(1.01);
+            } else if (event->event_id == SDL_EVENT_KEY_END) {
+                t = 99.721;
+                tidx = log(t / .00038) / log(1.01);
+            } else if (exponential_time) {
+                switch (event->event_id) {
+                case SDL_EVENT_KEY_RIGHT_ARROW:       tidx++;    break;
+                case SDL_EVENT_KEY_LEFT_ARROW:        tidx--;    break;
+                case SDL_EVENT_KEY_SHIFT_RIGHT_ARROW: tidx+=10;  break;
+                case SDL_EVENT_KEY_SHIFT_LEFT_ARROW:  tidx-=10;  break;
+                }
+                if (tidx < 0) tidx = 0;
+                if (tidx > 1254) tidx = 1254;  // xxx comment
+                t = .000380 * pow(1.01, tidx);
+            } else {
+                // linear time
+                switch (event->event_id) {
+                case SDL_EVENT_KEY_RIGHT_ARROW:       t += .1;    break;
+                case SDL_EVENT_KEY_LEFT_ARROW:        t -= .1;    break;
+                case SDL_EVENT_KEY_SHIFT_RIGHT_ARROW: t += 1;  break;
+                case SDL_EVENT_KEY_SHIFT_LEFT_ARROW:  t -= 1;  break;
+                }
+                if (t < .00038) t = .00038;
+                if (t >= 100) t = 99.9999;
             }
-            if (tt < T_START) tt = T_START;
-            if (tt > 100) tt = 100;
-            t = tt;
-            disp_width = get_diameter(t,NULL,NULL);  // xxx tracking mode
+
+            // xxx
+            if (auto_dw) {
+                disp_width = get_diameter(t,NULL,NULL);
+                if (disp_width == 0) disp_width = 1e-7;
+            }
+
             graph[0].x_cursor = t;  // xxx may want a routine for this
             graph[0].y_cursor = get_sf(t);
             graph[1].x_cursor = t;
