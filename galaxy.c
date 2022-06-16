@@ -2,11 +2,9 @@
 // - graphs
 //   - hubble law
 //   - diameter
-// - diametet tracking
 // - lock main pane to front
 // - limit on repeat key
-// - linear time option
-// - auto time sweep ??
+// - add cmd to reset display width
 
 #include <common.h>
 #include <util_sdl.h>
@@ -15,24 +13,12 @@
 // defines
 //
 
-#define STATE_RESET    0
-#define STATE_RUNNING  1
-#define STATE_PAUSED   2
-#define STATE_DONE     3
-
-#define STATE_STR(x) \
-    ((x) == STATE_RESET   ? "RESET"   : \
-     (x) == STATE_RUNNING ? "RUNNING" : \
-     (x) == STATE_PAUSED  ? "PAUSED"  : \
-     (x) == STATE_DONE    ? "DONE"    : \
-                            (assert(0),""))
-
-#define MAX_GALAXY 1000000
-#define MAX_GRAPH_POINTS 796
-
 #define MB 0x100000
 #define FONT_SZ 24
 #define DEG2RAD(deg)  ((deg) * (M_PI / 180))
+
+#define MAX_GALAXY 1000000
+#define MAX_GRAPH_POINTS 796
 
 #define NO_VALUE -999
 
@@ -70,34 +56,32 @@ typedef struct {
 static int       win_width, win_height;
 static double    disp_width;
 
-static int       state;
-
 static galaxy_t *galaxy;
+static graph_t   graph[4];
 
 static double    t;
+static int       num_visible;
 
-static graph_t   graph[4];
+static bool      time_run = false;  // xxx name   mode_time_run
 
 //
 // prototypes
 //
 
 static void galaxy_sim_init(void);
+static void * time_run_thread(void *cx);
 static void *sim_thread(void *cx);
 static int sim_visible(double t_sim);
 
 static void display_init(void);
 static void display_hndlr(void);
+static void display_start(void *cx);
 static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event);
 static int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event);
 
 static double squared(double x);
 static double get_temperature(double t);
 static int qsort_compare(const void *a, const void *b);
-
-// xxx placement
-static void set_num_visible(double t_arg, int numv);
-static int get_num_visible(double t_arg);
 
 // -----------------  MAIN  ---------------------------------------
   
@@ -121,37 +105,29 @@ static void galaxy_sim_init(void)
     int i;
     graph_t *g;
 
+    // xxx
     size = MAX_GALAXY * sizeof(galaxy_t);
-    printf("size needed %zd MB\n", size/MB);
     galaxy = malloc(size);
     if (galaxy == NULL) {
         printf("ERROR: failed to allocate memory for galaxy, size needed %zd MB\n", size/MB);
         exit(1);
     }
 
-    printf("INITIALIZING\n");
+    // xxx
     for (i = 0; i < MAX_GALAXY; i++) {
         galaxy_t *g = &galaxy[i];
         g->x = random_range(-1000, 1000);
         g->y = random_range(-1000, 1000);
-        //g->x = random_range(-500, 500);
-        //g->y = random_range(-500, 500);
         g->d = sqrt(squared(g->x) + squared(g->y));
         g->t_create = random_triangular(0.75, 1.25);
     }
 
     // sort by distance
-    printf("SORTING\n");
     qsort(galaxy, MAX_GALAXY, sizeof(galaxy_t), qsort_compare);
-    printf("SORTING DONE\n");
-
-    // xxx
-    //init_num_visible();
 
     // xxx
     t = 13.8;  // xxx
-    //disp_width = get_diameter(t,NULL,NULL);
-    disp_width = 200;
+    disp_width = get_diameter(t,NULL,NULL);
 
     // init scale factor graph
     g = &graph[0];
@@ -191,8 +167,7 @@ static void galaxy_sim_init(void)
     g->x_str     = "T";
     g->y_str     = "NUM_VISIBLE";
     g->max_xval  = 100;
-    g->max_yval  = 7000;
-    //g->max_yval  = 2000;
+    g->max_yval  = 1800;
     g->x_cursor  = t;
     g->y_cursor  = NO_VALUE;
     for (i = 0; i < MAX_GRAPH_POINTS; i++) {
@@ -202,8 +177,24 @@ static void galaxy_sim_init(void)
     }
     g->n = MAX_GRAPH_POINTS;
 
-    // create the sim_thread, which xxx .... 
+    // create the sim_thread and time_run_thread
     pthread_create(&tid, NULL, sim_thread, NULL);
+    pthread_create(&tid, NULL, time_run_thread, NULL);
+}
+
+static void * time_run_thread(void *cx)
+{
+    while (true) {
+        if (time_run) {
+            t += .02;
+            if (t >= 100) {
+                t = 99.9999;
+                time_run = false;
+            }
+        }
+        usleep(20000);
+    }
+    return NULL;
 }
 
 static void * sim_thread(void *cx)
@@ -217,8 +208,13 @@ static void * sim_thread(void *cx)
         }
 
         t_sim_inprog = t;
-        sim_visible(t_sim_inprog);
+        num_visible = sim_visible(t_sim_inprog);
         t_sim_done = t_sim_inprog;
+
+        // set num_visible xxx comment
+        assert(t_sim_done >= .00038 && t_sim_done < 100);
+        int i = (t_sim_done / 100) * MAX_GRAPH_POINTS;
+        graph[2].p[i].y = num_visible;
     }
 
     return NULL;
@@ -271,8 +267,6 @@ static int sim_visible(double t_sim)
         galaxy[i].t_visible = 0;
     }
 
-    set_num_visible(t_sim, numv);
-
     return numv;
 }
 
@@ -308,12 +302,13 @@ static void display_hndlr(void)
 {
     assert(win_width == 2*win_height);
 
-// xxx move main_pane to first
+    // xxx move main_pane to first, and/or lock it to the front
+
     // call the pane manger; 
     // - this will not return except when it is time to terminate the program
     sdl_pane_manager(
         NULL,           // context
-        NULL,           // called prior to pane handlers
+        display_start,  // called prior to pane handlers
         NULL,           // called after pane handlers
         20000,          // 0=continuous, -1=never, else us
         5,              // number of pane handler varargs that follow
@@ -335,6 +330,20 @@ static void display_hndlr(void)
         );
 }
 
+// - - - - - - - - -  DISPLAY START - -- - - - - - - - - - - -
+
+// called prior to pane handlers
+static void display_start(void *cx)
+{
+    // xxx comments
+    graph[0].x_cursor = t;
+    graph[0].y_cursor = get_sf(t);
+    graph[1].x_cursor = t;
+    graph[1].y_cursor = get_h(t);
+    graph[2].x_cursor = t;
+    graph[2].y_cursor = num_visible;
+}
+
 // - - - - - - - - -  MAIN PANE HNDLR  - - - - - - - - - - - -
 
 static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event)
@@ -344,19 +353,13 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
     } * vars = pane_cx->vars;
     rect_t * pane = &pane_cx->pane;
 
-    #define SDL_EVENT_AUTO_DW      (SDL_EVENT_USER_DEFINED + 0)
-    #define SDL_EVENT_TIME_ADJUST  (SDL_EVENT_USER_DEFINED + 1)
+    #define SDL_EVENT_AUTO_DISP_WIDTH      (SDL_EVENT_USER_DEFINED + 0)
     #define SDL_EVENT_TIME_RUN     (SDL_EVENT_USER_DEFINED + 2)
 
     #define PRECISION(x) ((x) == 0 ? 0 : (x) < .001 ? 6 : (x) < 1 ? 3 : (x) < 100 ? 1 : 0)
 
-    #define TIME_ADJUST_EXPONENTIAL 0
-    #define TIME_ADJUST_LINEAR      1
-
     static int yellow[256];
-    static bool auto_dw = false;
-    static int time_adjust = TIME_ADJUST_LINEAR;
-    static bool time_run = false;
+    static bool auto_disp_width = false;
 
     assert(pane->w == pane->h);
 
@@ -373,6 +376,7 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
             yellow[i] = FIRST_SDL_CUSTOM_COLOR+i;
             sdl_define_custom_color(yellow[i], i,i,0);
         }
+
         return PANE_HANDLER_RET_NO_ACTION;
     }
 
@@ -385,32 +389,11 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
         char title_str[100];
         int len;
 
-//{ static int cnt;
-  //printf("render cnt %d\n", ++cnt);
-//}
-        // xxx numvisible is a problem
-        if (time_run) {
-            t += .02;
-            if (t >= 100) {
-                t = 99.9999;
-                time_run = false;
-            }
-        }
-
-// xxx maybe make a pre routine for this and post routine for time run
         // xxx  will need to move these to support time_run
-        if (auto_dw) {
+        if (auto_disp_width) {
             disp_width = get_diameter(t,NULL,NULL);
             if (disp_width == 0) disp_width = 1e-7;
         }
-
-        graph[0].x_cursor = t;  // xxx may want a routine for this
-        graph[0].y_cursor = get_sf(t);
-        graph[1].x_cursor = t;
-        graph[1].y_cursor = get_h(t);
-        graph[2].x_cursor = t;
-        graph[2].y_cursor = get_num_visible(t);
-
 
         // display yellow background, the intensity represents the temperature
         double temp = get_temperature(t);
@@ -472,54 +455,40 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
         }
 
         // display blue point at center, representing location of the observer
-        sdl_render_point(pane, pane->w/2, pane->h/2, SDL_LIGHT_BLUE, 8);
+        sdl_render_point(pane, pane->w/2, pane->h/2, SDL_LIGHT_BLUE, 5);
 
-        // register the SDL_EVENT_AUTO_DW, which xxx
+        // register the SDL_EVENT_AUTO_DISP_WIDTH, which xxx
         sdl_render_text_and_register_event(
                 pane, pane->w-COL2X(15,FONT_SZ), ROW2Y(2,FONT_SZ), FONT_SZ, 
-                (auto_dw ? "AUTO_DW_IS_ON  " : "AUTO_DW_IS_OFF "),
+                (auto_disp_width ? "AUTO_DW_IS_ON  " : "AUTO_DW_IS_OFF "),
                 SDL_LIGHT_BLUE, SDL_BLACK, 
-                SDL_EVENT_AUTO_DW, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
+                SDL_EVENT_AUTO_DISP_WIDTH, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
 
         // xxx
-        sdl_render_text_and_register_event(
-                pane, pane->w-COL2X(15,FONT_SZ), ROW2Y(3,FONT_SZ), FONT_SZ, 
-                (time_adjust == TIME_ADJUST_EXPONENTIAL ? "TIME_IS_EXP    " : "TIME_IS_LINEAR "),
-                SDL_LIGHT_BLUE, SDL_BLACK, 
-                SDL_EVENT_TIME_ADJUST, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
-
         sdl_render_text_and_register_event(
                 pane, pane->w-COL2X(15,FONT_SZ), ROW2Y(4,FONT_SZ), FONT_SZ, 
                 (time_run ? "TIME_IS_RUNNING" : "TIME_IS_STOPPED"),
                 SDL_LIGHT_BLUE, SDL_BLACK, 
                 SDL_EVENT_TIME_RUN, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
 
-        // display current state at top middle
-        sprintf(title_str, "%s  DISPLAY_WIDTH=%0.*f",\
-            STATE_STR(state), PRECISION(disp_width), disp_width);
+        // display the title_str, containing DISPLAY_WIDTH, at top center
+        sprintf(title_str, "DISPLAY_WIDTH=%0.*f",\
+                PRECISION(disp_width), disp_width);
         len = strlen(title_str);
         sdl_render_printf(
             pane, pane->w/2 - COL2X(len,FONT_SZ/2), 0,
             FONT_SZ, SDL_WHITE, SDL_BLACK, "%s", title_str);
 
         // display status
-        int row=2, numv;
+        int row=2;
         sdl_render_printf(pane, 0, ROW2Y(row++,FONT_SZ), FONT_SZ, SDL_WHITE, SDL_BLACK, 
                           "T        %-8.*f", PRECISION(t), t);
         sdl_render_printf(pane, 0, ROW2Y(row++,FONT_SZ), FONT_SZ, SDL_WHITE, SDL_BLACK, 
                           "TEMP     %-8.*f", PRECISION(temp), temp);
         sdl_render_printf(pane, 0, ROW2Y(row++,FONT_SZ), FONT_SZ, SDL_WHITE, SDL_BLACK, 
                           "DIAMETER %-8.*f", PRECISION(diameter), diameter);
-        numv = get_num_visible(t);
-        if (numv != NO_VALUE) {
-            sdl_render_printf(pane, 0, ROW2Y(row++,FONT_SZ), FONT_SZ, SDL_WHITE, SDL_BLACK, 
-                          "NUM_VIS  %-8d", numv);
-        } else {
-            sdl_render_printf(pane, 0, ROW2Y(row++,FONT_SZ), FONT_SZ, SDL_WHITE, SDL_BLACK, 
-                          "NUM_VIS  %-8s", "");
-        }
-
-
+        sdl_render_printf(pane, 0, ROW2Y(row++,FONT_SZ), FONT_SZ, SDL_WHITE, SDL_BLACK, 
+                          "NUM_VIS  %-8d", num_visible);
 
         return PANE_HANDLER_RET_NO_ACTION;
     }
@@ -534,23 +503,19 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
         case 'x':
             time_run = !time_run;
             break;
-        case SDL_EVENT_AUTO_DW:
-            auto_dw = !auto_dw;
-            if (auto_dw) {
+        case SDL_EVENT_AUTO_DISP_WIDTH:
+            auto_disp_width = !auto_disp_width;
+            if (auto_disp_width) {
                 disp_width = get_diameter(t,NULL,NULL);
                 if (disp_width == 0) disp_width = 1e-7;
             }
-            break;
-        case SDL_EVENT_TIME_ADJUST:
-            time_adjust = (time_adjust == TIME_ADJUST_EXPONENTIAL ?
-                           TIME_ADJUST_LINEAR : TIME_ADJUST_EXPONENTIAL);
             break;
         case SDL_EVENT_KEY_UP_ARROW:
         case SDL_EVENT_KEY_DOWN_ARROW:
         case SDL_EVENT_KEY_SHIFT_UP_ARROW:
         case SDL_EVENT_KEY_SHIFT_DOWN_ARROW:
             // adjust disp_width  use similar method as t
-            if (auto_dw) {
+            if (auto_disp_width) {
                 break;
             }
             switch (event->event_id) {
@@ -567,38 +532,14 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
         case SDL_EVENT_KEY_INSERT:
         case SDL_EVENT_KEY_HOME:
         case SDL_EVENT_KEY_END:;
-
-            //if (time_run) {
-                //break;
-            //}
-
             // adjust t
             if (event->event_id == SDL_EVENT_KEY_INSERT) {
                 t = .000380;
-                //tidx = log(t / .00038) / log(1.01);
             } else if (event->event_id == SDL_EVENT_KEY_HOME) {
                 t = 13.8;
-                //tidx = log(t / .00038) / log(1.01);
             } else if (event->event_id == SDL_EVENT_KEY_END) {
-                t = 99.721;
-                //tidx = log(t / .00038) / log(1.01);
-            } else if (time_adjust == TIME_ADJUST_EXPONENTIAL) {
-                //static int tidx = 1055;  // xxx comment, and use define for 100
-                int tidx;
-
-                tidx = log(t / .00038) / log(1.01) + 0.5;
-                
-
-                switch (event->event_id) {
-                case SDL_EVENT_KEY_RIGHT_ARROW:       tidx++;    break;
-                case SDL_EVENT_KEY_LEFT_ARROW:        tidx--;    break;
-                case SDL_EVENT_KEY_SHIFT_RIGHT_ARROW: tidx+=10;  break;
-                case SDL_EVENT_KEY_SHIFT_LEFT_ARROW:  tidx-=10;  break;
-                }
-                if (tidx < 0) tidx = 0;
-                if (tidx > 1254) tidx = 1254;  // xxx comment
-                t = .000380 * pow(1.01, tidx);
-            } else {  // time_adjust == TIME_ADJST_LINEAR
+                t = 99.9999;
+            } else {
                 switch (event->event_id) {
                 case SDL_EVENT_KEY_RIGHT_ARROW:       t += .1;    break;
                 case SDL_EVENT_KEY_LEFT_ARROW:        t -= .1;    break;
@@ -765,46 +706,3 @@ static int qsort_compare(const void *a, const void *b)
             ga->d == gb->d ? 0 :
                             -1);
 }
-
-static struct {
-    double t;
-    int val;
-} num_visible = {0,NO_VALUE};
-
-static void set_num_visible(double t_arg, int numv)
-{
-    int i;
-
-    i = (t_arg / 100.00001) * MAX_GRAPH_POINTS;
-
-    if (i >= MAX_GRAPH_POINTS) {
-        printf("ERROR: BUG i %d\n", i);
-    } else {
-        graph[2].p[i].y = numv;
-        //printf("t=%f  num_vis=%d\n", t, numv);
-    }
-    if (graph[2].x_cursor == t_arg) {
-        graph[2].y_cursor = numv;
-    }
-
-    num_visible.t = t_arg;
-    num_visible.val = numv;
-
-}
-
-static int get_num_visible(double t_arg)
-{
-    if (t_arg == num_visible.t) {
-        return num_visible.val;
-    } else {
-        int i = (t_arg / 100.00001) * MAX_GRAPH_POINTS;
-        if (i >= MAX_GRAPH_POINTS) {
-            printf("ERROR: BUG i %d\n", i);
-            return NO_VALUE;
-        } else {
-            return graph[2].p[i].y;
-            //printf("t=%f  num_vis=%d\n", t, numv);
-        }
-    }
-}
-
