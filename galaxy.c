@@ -132,8 +132,10 @@ static void galaxy_sim_init(void)
     printf("INITIALIZING\n");
     for (i = 0; i < MAX_GALAXY; i++) {
         galaxy_t *g = &galaxy[i];
-        g->x = random_range(-500, 500);
-        g->y = random_range(-500, 500);
+        g->x = random_range(-1000, 1000);
+        g->y = random_range(-1000, 1000);
+        //g->x = random_range(-500, 500);
+        //g->y = random_range(-500, 500);
         g->d = sqrt(squared(g->x) + squared(g->y));
         g->t_create = random_triangular(0.75, 1.25);
     }
@@ -148,7 +150,8 @@ static void galaxy_sim_init(void)
 
     // xxx
     t = 13.8;  // xxx
-    disp_width = get_diameter(t,NULL,NULL);
+    //disp_width = get_diameter(t,NULL,NULL);
+    disp_width = 200;
 
     // init scale factor graph
     g = &graph[0];
@@ -189,6 +192,7 @@ static void galaxy_sim_init(void)
     g->y_str     = "NUM_VISIBLE";
     g->max_xval  = 100;
     g->max_yval  = 7000;
+    //g->max_yval  = 2000;
     g->x_cursor  = t;
     g->y_cursor  = NO_VALUE;
     for (i = 0; i < MAX_GRAPH_POINTS; i++) {
@@ -304,6 +308,7 @@ static void display_hndlr(void)
 {
     assert(win_width == 2*win_height);
 
+// xxx move main_pane to first
     // call the pane manger; 
     // - this will not return except when it is time to terminate the program
     sdl_pane_manager(
@@ -339,14 +344,19 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
     } * vars = pane_cx->vars;
     rect_t * pane = &pane_cx->pane;
 
-    #define SDL_EVENT_AUTO_DW    (SDL_EVENT_USER_DEFINED + 0)
-    #define SDL_EVENT_TIME_MODE  (SDL_EVENT_USER_DEFINED + 1)
+    #define SDL_EVENT_AUTO_DW      (SDL_EVENT_USER_DEFINED + 0)
+    #define SDL_EVENT_TIME_ADJUST  (SDL_EVENT_USER_DEFINED + 1)
+    #define SDL_EVENT_TIME_RUN     (SDL_EVENT_USER_DEFINED + 2)
 
     #define PRECISION(x) ((x) == 0 ? 0 : (x) < .001 ? 6 : (x) < 1 ? 3 : (x) < 100 ? 1 : 0)
 
+    #define TIME_ADJUST_EXPONENTIAL 0
+    #define TIME_ADJUST_LINEAR      1
+
     static int yellow[256];
-    static bool auto_dw = true;
-    static bool exponential_time = true;
+    static bool auto_dw = false;
+    static int time_adjust = TIME_ADJUST_LINEAR;
+    static bool time_run = false;
 
     assert(pane->w == pane->h);
 
@@ -374,6 +384,33 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
         int yidx;
         char title_str[100];
         int len;
+
+//{ static int cnt;
+  //printf("render cnt %d\n", ++cnt);
+//}
+        // xxx numvisible is a problem
+        if (time_run) {
+            t += .02;
+            if (t >= 100) {
+                t = 99.9999;
+                time_run = false;
+            }
+        }
+
+// xxx maybe make a pre routine for this and post routine for time run
+        // xxx  will need to move these to support time_run
+        if (auto_dw) {
+            disp_width = get_diameter(t,NULL,NULL);
+            if (disp_width == 0) disp_width = 1e-7;
+        }
+
+        graph[0].x_cursor = t;  // xxx may want a routine for this
+        graph[0].y_cursor = get_sf(t);
+        graph[1].x_cursor = t;
+        graph[1].y_cursor = get_h(t);
+        graph[2].x_cursor = t;
+        graph[2].y_cursor = get_num_visible(t);
+
 
         // display yellow background, the intensity represents the temperature
         double temp = get_temperature(t);
@@ -439,17 +476,23 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
 
         // register the SDL_EVENT_AUTO_DW, which xxx
         sdl_render_text_and_register_event(
-                pane, pane->w-COL2X(14,FONT_SZ), ROW2Y(2,FONT_SZ), FONT_SZ, 
-                (auto_dw ? "AUTO_DW_IS_ON " : "AUTO_DW_IS_OFF"),
+                pane, pane->w-COL2X(15,FONT_SZ), ROW2Y(2,FONT_SZ), FONT_SZ, 
+                (auto_dw ? "AUTO_DW_IS_ON  " : "AUTO_DW_IS_OFF "),
                 SDL_LIGHT_BLUE, SDL_BLACK, 
                 SDL_EVENT_AUTO_DW, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
 
         // xxx
         sdl_render_text_and_register_event(
-                pane, pane->w-COL2X(14,FONT_SZ), ROW2Y(3,FONT_SZ), FONT_SZ, 
-                (exponential_time ? "TIME_IS_EXP   " : "TIME_IS_LINEAR"),
+                pane, pane->w-COL2X(15,FONT_SZ), ROW2Y(3,FONT_SZ), FONT_SZ, 
+                (time_adjust == TIME_ADJUST_EXPONENTIAL ? "TIME_IS_EXP    " : "TIME_IS_LINEAR "),
                 SDL_LIGHT_BLUE, SDL_BLACK, 
-                SDL_EVENT_TIME_MODE, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
+                SDL_EVENT_TIME_ADJUST, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
+
+        sdl_render_text_and_register_event(
+                pane, pane->w-COL2X(15,FONT_SZ), ROW2Y(4,FONT_SZ), FONT_SZ, 
+                (time_run ? "TIME_IS_RUNNING" : "TIME_IS_STOPPED"),
+                SDL_LIGHT_BLUE, SDL_BLACK, 
+                SDL_EVENT_TIME_RUN, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
 
         // display current state at top middle
         sprintf(title_str, "%s  DISPLAY_WIDTH=%0.*f",\
@@ -476,6 +519,8 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
                           "NUM_VIS  %-8s", "");
         }
 
+
+
         return PANE_HANDLER_RET_NO_ACTION;
     }
 
@@ -485,6 +530,10 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
 
     if (request == PANE_HANDLER_REQ_EVENT) {
         switch (event->event_id) {
+        case SDL_EVENT_TIME_RUN:
+        case 'x':
+            time_run = !time_run;
+            break;
         case SDL_EVENT_AUTO_DW:
             auto_dw = !auto_dw;
             if (auto_dw) {
@@ -492,8 +541,9 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
                 if (disp_width == 0) disp_width = 1e-7;
             }
             break;
-        case SDL_EVENT_TIME_MODE:
-            exponential_time = !exponential_time;
+        case SDL_EVENT_TIME_ADJUST:
+            time_adjust = (time_adjust == TIME_ADJUST_EXPONENTIAL ?
+                           TIME_ADJUST_LINEAR : TIME_ADJUST_EXPONENTIAL);
             break;
         case SDL_EVENT_KEY_UP_ARROW:
         case SDL_EVENT_KEY_DOWN_ARROW:
@@ -517,19 +567,28 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
         case SDL_EVENT_KEY_INSERT:
         case SDL_EVENT_KEY_HOME:
         case SDL_EVENT_KEY_END:;
-            static int tidx = 1055;  // xxx comment, and use define for 100
+
+            //if (time_run) {
+                //break;
+            //}
 
             // adjust t
             if (event->event_id == SDL_EVENT_KEY_INSERT) {
                 t = .000380;
-                tidx = log(t / .00038) / log(1.01);
+                //tidx = log(t / .00038) / log(1.01);
             } else if (event->event_id == SDL_EVENT_KEY_HOME) {
                 t = 13.8;
-                tidx = log(t / .00038) / log(1.01);
+                //tidx = log(t / .00038) / log(1.01);
             } else if (event->event_id == SDL_EVENT_KEY_END) {
                 t = 99.721;
-                tidx = log(t / .00038) / log(1.01);
-            } else if (exponential_time) {
+                //tidx = log(t / .00038) / log(1.01);
+            } else if (time_adjust == TIME_ADJUST_EXPONENTIAL) {
+                //static int tidx = 1055;  // xxx comment, and use define for 100
+                int tidx;
+
+                tidx = log(t / .00038) / log(1.01) + 0.5;
+                
+
                 switch (event->event_id) {
                 case SDL_EVENT_KEY_RIGHT_ARROW:       tidx++;    break;
                 case SDL_EVENT_KEY_LEFT_ARROW:        tidx--;    break;
@@ -539,8 +598,7 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
                 if (tidx < 0) tidx = 0;
                 if (tidx > 1254) tidx = 1254;  // xxx comment
                 t = .000380 * pow(1.01, tidx);
-            } else {
-                // linear time
+            } else {  // time_adjust == TIME_ADJST_LINEAR
                 switch (event->event_id) {
                 case SDL_EVENT_KEY_RIGHT_ARROW:       t += .1;    break;
                 case SDL_EVENT_KEY_LEFT_ARROW:        t -= .1;    break;
@@ -550,19 +608,6 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
                 if (t < .00038) t = .00038;
                 if (t >= 100) t = 99.9999;
             }
-
-            // xxx
-            if (auto_dw) {
-                disp_width = get_diameter(t,NULL,NULL);
-                if (disp_width == 0) disp_width = 1e-7;
-            }
-
-            graph[0].x_cursor = t;  // xxx may want a routine for this
-            graph[0].y_cursor = get_sf(t);
-            graph[1].x_cursor = t;
-            graph[1].y_cursor = get_h(t);
-            graph[2].x_cursor = t;
-            graph[2].y_cursor = get_num_visible(t);
             break;
         default: 
             break;
