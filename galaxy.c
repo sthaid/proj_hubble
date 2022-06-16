@@ -1,10 +1,18 @@
 // xxx  todo
+// - check all prints
 // - graphs
 //   - hubble law
 //   - diameter
 // - lock main pane to front
 // - limit on repeat key
 // - add cmd to reset display width
+
+// - use defines for
+//    13.8
+//    .00038
+//   100
+//   0.75
+//   1.25
 
 #include <common.h>
 #include <util_sdl.h>
@@ -15,7 +23,6 @@
 
 #define MB 0x100000
 #define FONT_SZ 24
-#define DEG2RAD(deg)  ((deg) * (M_PI / 180))
 
 #define MAX_GALAXY 1000000
 #define MAX_GRAPH_POINTS 796
@@ -62,7 +69,7 @@ static graph_t   graph[4];
 static double    t;
 static int       num_visible;
 
-static bool      time_run = false;  // xxx name   mode_time_run
+static bool      time_run;
 
 //
 // prototypes
@@ -105,7 +112,7 @@ static void galaxy_sim_init(void)
     int i;
     graph_t *g;
 
-    // xxx
+    // allocate memory for the galaxy array
     size = MAX_GALAXY * sizeof(galaxy_t);
     galaxy = malloc(size);
     if (galaxy == NULL) {
@@ -113,7 +120,8 @@ static void galaxy_sim_init(void)
         exit(1);
     }
 
-    // xxx
+    // initialize the galaxy array, the 2 dimension position of the galaxies is 
+    // randomly chosen in a box that is 2000 BLYR x 2000 BLYR
     for (i = 0; i < MAX_GALAXY; i++) {
         galaxy_t *g = &galaxy[i];
         g->x = random_range(-1000, 1000);
@@ -122,11 +130,11 @@ static void galaxy_sim_init(void)
         g->t_create = random_triangular(0.75, 1.25);
     }
 
-    // sort by distance
+    // sort the galaxies by distance
     qsort(galaxy, MAX_GALAXY, sizeof(galaxy_t), qsort_compare);
 
-    // xxx
-    t = 13.8;  // xxx
+    // set initial time and display width
+    t = 13.8;
     disp_width = get_diameter(t,NULL,NULL);
 
     // init scale factor graph
@@ -135,7 +143,7 @@ static void galaxy_sim_init(void)
     g->x_str     = "T";
     g->y_str     = "SF";
     g->max_xval  = 100;
-    g->max_yval  = get_sf(100);  //xxx tmax
+    g->max_yval  = get_sf(100);
     g->x_cursor  = t;
     g->y_cursor  = get_sf(t);
     for (i = 0; i < MAX_GRAPH_POINTS; i++) {
@@ -203,15 +211,17 @@ static void * sim_thread(void *cx)
     double t_sim_inprog = 0;
 
     while (true) {
+        // loop until t has changed
         while (t == t_sim_done) {
             usleep(1000);
         }
 
+        // run simulation to determine which galaxies are visible
         t_sim_inprog = t;
         num_visible = sim_visible(t_sim_inprog);
         t_sim_done = t_sim_inprog;
 
-        // set num_visible xxx comment
+        // update the graph of num_visible 
         assert(t_sim_done >= .00038 && t_sim_done < 100);
         int i = (t_sim_done / 100) * MAX_GRAPH_POINTS;
         graph[2].p[i].y = num_visible;
@@ -225,6 +235,8 @@ static int sim_visible(double t_sim)
     // backtrack a photon 
     // at each step check to see which galaxies are now closer to earth than the photon,
     // mark these as visible
+
+    // xxx comments
 
     double d_photon_si, t_photon_si;
     double d_photon, t_photon;
@@ -244,9 +256,9 @@ static int sim_visible(double t_sim)
         d_photon = d_photon_si / M_PER_BLYR;
         t_photon = t_photon_si / S_PER_BYR;
 
-        sf = get_sf(t_photon);  // xxx check this
-        while (idx < MAX_GALAXY && d_photon > galaxy[idx].d * sf) {  // xxx optimize this line ?
-            if (t_photon > galaxy[idx].t_create) {  //xxx
+        sf = get_sf(t_photon);
+        while (idx < MAX_GALAXY && d_photon > galaxy[idx].d * sf) {
+            if (t_photon > galaxy[idx].t_create) {
                 galaxy[idx].t_visible = t_photon;
                 numv++;
             } else {
@@ -255,7 +267,7 @@ static int sim_visible(double t_sim)
             idx++;
         }
 
-        if (t_photon < 0.75) {  // xxx define for 0.75
+        if (t_photon < 0.75) {
             break;
         }
         if (idx == MAX_GALAXY) {
@@ -302,7 +314,7 @@ static void display_hndlr(void)
 {
     assert(win_width == 2*win_height);
 
-    // xxx move main_pane to first, and/or lock it to the front
+    // XXX xxx move main_pane to first, and/or lock it to the front
 
     // call the pane manger; 
     // - this will not return except when it is time to terminate the program
@@ -332,10 +344,10 @@ static void display_hndlr(void)
 
 // - - - - - - - - -  DISPLAY START - -- - - - - - - - - - - -
 
-// called prior to pane handlers
 static void display_start(void *cx)
 {
-    // xxx comments
+    // this routine is called prior to pane handlers, and
+    // initialize the graphs cursor x,y values
     graph[0].x_cursor = t;
     graph[0].y_cursor = get_sf(t);
     graph[1].x_cursor = t;
@@ -389,7 +401,8 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
         char title_str[100];
         int len;
 
-        // xxx  will need to move these to support time_run
+        // if auto_disp_width is enabled then update disp_width
+        // to the diameter of the universe at time t
         if (auto_disp_width) {
             disp_width = get_diameter(t,NULL,NULL);
             if (disp_width == 0) disp_width = 1e-7;
@@ -403,9 +416,9 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
         if (yidx > 255) yidx = 255;
         sdl_render_fill_rect(pane, &(rect_t){0,0,pane->w, pane->h}, yellow[yidx]);
 
-        // xxx
-        // xxx 1 is visible
-        // xxx 2 not visible
+        // xxx comment
+        // - 1 is visible
+        // - 2 not visible
         #define MAX_GALAXY_POINTS 500
 
         point_t points1[MAX_GALAXY_POINTS];
@@ -457,14 +470,17 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
         // display blue point at center, representing location of the observer
         sdl_render_point(pane, pane->w/2, pane->h/2, SDL_LIGHT_BLUE, 5);
 
-        // register the SDL_EVENT_AUTO_DISP_WIDTH, which xxx
+        // register the SDL_EVENT_AUTO_DISP_WIDTH, which will toggle the
+        // mode that automatically adjusts the display width to match the
+        // diameter of the universe at time t
         sdl_render_text_and_register_event(
                 pane, pane->w-COL2X(15,FONT_SZ), ROW2Y(2,FONT_SZ), FONT_SZ, 
                 (auto_disp_width ? "AUTO_DW_IS_ON  " : "AUTO_DW_IS_OFF "),
                 SDL_LIGHT_BLUE, SDL_BLACK, 
                 SDL_EVENT_AUTO_DISP_WIDTH, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
 
-        // xxx
+        // register the SDL_EVENT_TIME_RUN which, when enabled, causes time
+        // to automatically advance to its maximum value of 100 BYR
         sdl_render_text_and_register_event(
                 pane, pane->w-COL2X(15,FONT_SZ), ROW2Y(4,FONT_SZ), FONT_SZ, 
                 (time_run ? "TIME_IS_RUNNING" : "TIME_IS_STOPPED"),
@@ -479,7 +495,7 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
             pane, pane->w/2 - COL2X(len,FONT_SZ/2), 0,
             FONT_SZ, SDL_WHITE, SDL_BLACK, "%s", title_str);
 
-        // display status
+        // display status values
         int row=2;
         sdl_render_printf(pane, 0, ROW2Y(row++,FONT_SZ), FONT_SZ, SDL_WHITE, SDL_BLACK, 
                           "T        %-8.*f", PRECISION(t), t);
@@ -607,7 +623,7 @@ static int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params
 
         assert(g->n <= ARRAY_SIZE(points));
 
-        // xxx
+        // if this graph does not exist then return
         if (!g->exists) {
             return PANE_HANDLER_RET_NO_ACTION;
         }
