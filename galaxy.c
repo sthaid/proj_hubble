@@ -6,7 +6,6 @@
 // - lock main pane to front
 // - limit on repeat key
 // - add cmd to reset display width
-
 // - use defines for
 //    13.8
 //    .00038
@@ -27,7 +26,9 @@
 #define MAX_GALAXY 1000000
 #define MAX_GRAPH_POINTS 796
 
-#define NO_VALUE -999
+#define NO_VALUE -999  // xxx used?
+
+#define PRECISION(x) ((x) == 0 ? 0 : (x) < .001 ? 6 : (x) < 1 ? 3 : (x) < 100 ? 1 : 0)
 
 //
 // typdedefs
@@ -43,12 +44,10 @@ typedef struct {
 
 typedef struct {
     bool exists;
-    char *x_str;
-    char *y_str;
     double max_xval;
     double max_yval;
     double x_cursor;
-    double y_cursor;  // XXX title
+    char title[100];
     struct {
         double x;
         double y;
@@ -88,7 +87,7 @@ static bool         time_run; // xxx other mode flags here
 //
 
 static void galaxy_sim_init(void);
-static void * time_run_thread(void *cx);
+static void *time_run_thread(void *cx);
 static void *sim_thread(void *cx);
 static void sim_visible(double t_sim);
 
@@ -125,7 +124,6 @@ static void galaxy_sim_init(void)
     graph_t *g;
 
     // allocate memory for the galaxy array
-    // xxx dont need to malloc?
     size = MAX_GALAXY * sizeof(galaxy_t);
     galaxy = malloc(size);
     if (galaxy == NULL) {
@@ -137,7 +135,7 @@ static void galaxy_sim_init(void)
     // randomly chosen in a box that is 2000 BLYR x 2000 BLYR
     for (i = 0; i < MAX_GALAXY; i++) {
         galaxy_t *g = &galaxy[i];
-        if (i < 7) {
+        if (i < 6) {
             g->x = (30 * (i + 1)) * (M_PER_MPC / M_PER_BLYR);
             g->y = 0;
             g->t_create = 1;
@@ -159,12 +157,8 @@ static void galaxy_sim_init(void)
     // init scale factor graph
     g = &graph[0];
     g->exists    = true;
-    g->x_str     = "T";
-    g->y_str     = "SF";
     g->max_xval  = 100;
     g->max_yval  = get_sf(100);
-    g->x_cursor  = t;
-    g->y_cursor  = get_sf(t);
     for (i = 0; i < MAX_GRAPH_POINTS; i++) {
         double tg = (i + 0.5) * (g->max_xval / MAX_GRAPH_POINTS);
         g->p[i].x = tg;
@@ -175,12 +169,8 @@ static void galaxy_sim_init(void)
     // init hubble param graph
     g = &graph[1];
     g->exists    = true;
-    g->x_str     = "T";
-    g->y_str     = "H";
     g->max_xval  = 100;
     g->max_yval  = 1000;
-    g->x_cursor  = t;
-    g->y_cursor  = get_h(t);
     for (i = 0; i < MAX_GRAPH_POINTS; i++) {
         double tg = (i + 0.5) * (g->max_xval / MAX_GRAPH_POINTS);
         g->p[i].x = tg;
@@ -191,12 +181,8 @@ static void galaxy_sim_init(void)
     // init num_visible graph
     g = &graph[2];
     g->exists    = true;
-    g->x_str     = "T";
-    g->y_str     = "NUM_VISIBLE";
     g->max_xval  = 100;
     g->max_yval  = 1800;
-    g->x_cursor  = t;
-    g->y_cursor  = NO_VALUE;
     for (i = 0; i < MAX_GRAPH_POINTS; i++) {
         double _t = (i + 0.5) * (g->max_xval / MAX_GRAPH_POINTS);
         g->p[i].x = _t;
@@ -204,16 +190,11 @@ static void galaxy_sim_init(void)
     }
     g->n = MAX_GRAPH_POINTS;
 
-// XXX 
-    // init hubble law graph
+    // init hubble law graph; the graph points are initialized in display_start
     g = &graph[3];
     g->exists    = true;
-    g->x_str     = "XXX";
-    g->y_str     = "XXX";
     g->max_xval  = 1000;
-    g->max_yval  = 100000;  //xxx 60000;
-    g->x_cursor  = 0; //XXX
-    g->y_cursor  = NO_VALUE;
+    g->max_yval  = 100000;
     g->n = 0;
 
     // create the sim_thread and time_run_thread
@@ -304,11 +285,12 @@ static void sim_visible(double t_sim)
         }
     }
 
+    // xxx comment
     for (int i = idx; i < MAX_GALAXY; i++) {
         galaxy[i].t_visible = 0;
     }
 
-    // XXX new routine ?  AND, fill in the graph
+    // xxx comment
     double sfo, sfe, d, z, v, d_mpc, v_kmps;
     int n = 0;
 
@@ -339,14 +321,14 @@ static void sim_visible(double t_sim)
     }
     hl.n = n;
 
-    // xxx publish
+    // xxx comment
     num_visible = numv;
+
     // update the graph of num_visible 
     int i = (t_sim / 100) * MAX_GRAPH_POINTS;
     assert(i >= 0 && i < MAX_GRAPH_POINTS);
     graph[2].p[i].y = num_visible;
 }
-
 
 // -----------------  DISPLAY  ------------------------------------
 
@@ -407,34 +389,48 @@ static void display_hndlr(void)
 }
 
 // - - - - - - - - -  DISPLAY START - -- - - - - - - - - - - -
-
-static void display_start(void *cx)
-{
-    // this routine is called prior to pane handlers, and
-    // initialize the graphs cursor x,y values
-    graph[0].x_cursor = t;
-    graph[0].y_cursor = get_sf(t);
-    graph[1].x_cursor = t;
-    graph[1].y_cursor = get_h(t);
-    graph[2].x_cursor = t;
-    graph[2].y_cursor = num_visible;
-
-#if 0
+#if 0 //xxx
     // update the graph of num_visible 
     assert(t_sim_done >= .00038 && t_sim_done < 100);
     int i = (t_sim_done / 100) * MAX_GRAPH_POINTS;
     graph[2].p[i].y = num_visible;
 #endif
 
+// this routine is called prior to pane handlers
+static void display_start(void *cx)
+{
+    double sf = get_sf(t);
+    double h = get_h(t);
+    graph_t *gr;
+
+    // initialize the graphs cursor x,y values
+    gr = &graph[0];
+    gr->x_cursor = t;
+    sprintf(gr->title, "T=%.*f  SF=%.*f", PRECISION(t), t, PRECISION(sf), sf);
+
+    gr = &graph[1];
+    gr->x_cursor = t;
+    sprintf(gr->title, "T=%.*f  H=%.*f", PRECISION(t), t, PRECISION(h), h);
+
+    gr = &graph[2];
+    gr->x_cursor = t;
+    sprintf(gr->title, "T=%.*f  NUM_VISIBLE=%d", PRECISION(t), t, num_visible);
+
+    gr = &graph[3];
     for (int i = 0; i < hl.n; i++) {
-        graph[3].p[i].x = hl.g[i].d_mpc;
-        graph[3].p[i].y = hl.g[i].v_kmps;
+        gr->p[i].x = hl.g[i].d_mpc;
+        gr->p[i].y = hl.g[i].v_kmps;
     }
-    graph[3].n = hl.n;
+    gr->n = hl.n;
     if (hl.idx < 0 || hl.idx >= hl.n) {
         hl.idx = 0;
     }
-    graph[3].x_cursor = hl.g[hl.idx].d_mpc;
+    gr->x_cursor = hl.g[hl.idx].d_mpc;
+    sprintf(gr->title, "MPC=%.*f  KM/S=%.*f  Z=%.*f  H=%.*f",
+            PRECISION(hl.g[hl.idx].d_mpc), hl.g[hl.idx].d_mpc,
+            PRECISION(hl.g[hl.idx].v_kmps), hl.g[hl.idx].v_kmps,
+            PRECISION(hl.g[hl.idx].z), hl.g[hl.idx].z,
+            PRECISION(hl.g[hl.idx].h), hl.g[hl.idx].h);
 }
 
 // - - - - - - - - -  MAIN PANE HNDLR  - - - - - - - - - - - -
@@ -448,8 +444,6 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
 
     #define SDL_EVENT_AUTO_DISP_WIDTH      (SDL_EVENT_USER_DEFINED + 0)
     #define SDL_EVENT_TIME_RUN     (SDL_EVENT_USER_DEFINED + 2)
-
-    #define PRECISION(x) ((x) == 0 ? 0 : (x) < .001 ? 6 : (x) < 1 ? 3 : (x) < 100 ? 1 : 0)
 
     static int yellow[256];
     static bool auto_disp_width = false;
@@ -706,26 +700,26 @@ static int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params
     // ------------------------
 
     if (request == PANE_HANDLER_REQ_RENDER) {
-        graph_t *g = &graph[vars->graph_idx];
+        graph_t *gr = &graph[vars->graph_idx];
         static point_t points[1000];
         char str[100];
         int xi, n=0;
 
-        assert(g->n <= ARRAY_SIZE(points));
+        assert(gr->n <= ARRAY_SIZE(points));
 
         // if this graph does not exist then return
-        if (!g->exists) {
+        if (!gr->exists) {
             return PANE_HANDLER_RET_NO_ACTION;
         }
 
         // create the array of graph points that are to be displayed
-        for (int i = 0; i < g->n; i++) {
-            if (g->p[i].y == NO_VALUE) {
+        for (int i = 0; i < gr->n; i++) {
+            if (gr->p[i].y == NO_VALUE) {
                 continue;
             }
-            points[n].x = ((g->p[i].x / g->max_xval) * (pane->w));
+            points[n].x = ((gr->p[i].x / gr->max_xval) * (pane->w));
             points[n].y = (pane->h - 1) -
-                          ((g->p[i].y / g->max_yval) * (pane->h - ROW2Y(1,FONT_SZ)));
+                          ((gr->p[i].y / gr->max_yval) * (pane->h - ROW2Y(1,FONT_SZ)));
             n++;
         }
         sdl_render_points(pane, points, n, SDL_WHITE, 2);  // xxx 1
@@ -733,34 +727,22 @@ static int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params
         // print max_yval
         sdl_render_printf(pane, 0, ROW2Y(1,FONT_SZ), 
                           FONT_SZ, SDL_WHITE, SDL_BLACK,
-                          "%0.*f", PRECISION(g->max_yval), g->max_yval);
+                          "%0.*f", PRECISION(gr->max_yval), gr->max_yval);
 
         // print max_xval
-        sprintf(str, "%0.*f", PRECISION(g->max_xval), g->max_xval);
+        sprintf(str, "%0.*f", PRECISION(gr->max_xval), gr->max_xval);
         sdl_render_printf(pane, pane->w-COL2X(strlen(str),FONT_SZ), pane->h-ROW2Y(1,FONT_SZ), 
                           FONT_SZ, SDL_WHITE, SDL_BLACK,
                           "%s", str);
 
         // display cursor
-        xi = (g->x_cursor / g->max_xval) * pane->w;
-        //sdl_render_line(pane, xi-1, pane->h-1, xi-1, ROW2Y(2,FONT_SZ), SDL_WHITE);
+        xi = (gr->x_cursor / gr->max_xval) * pane->w;
         sdl_render_line(pane, xi-0, pane->h-1, xi-0, ROW2Y(2,FONT_SZ), SDL_WHITE);
-        //sdl_render_line(pane, xi+1, pane->h-1, xi+1, ROW2Y(2,FONT_SZ), SDL_WHITE);
 
         // display title
-        if (g->y_cursor != NO_VALUE) {
-            sprintf(str, "%s=%0.*f  %s=%0.*f", 
-                    g->x_str, PRECISION(g->x_cursor), g->x_cursor,
-                    g->y_str, PRECISION(g->y_cursor), g->y_cursor);
-        } else {
-            sprintf(str, "%s=%0.*f  %s=", 
-                    g->x_str, PRECISION(g->x_cursor), g->x_cursor,
-                    g->y_str);
-        }
-
         sdl_render_printf(pane, COL2X(8,FONT_SZ), 0, 
                           FONT_SZ, SDL_WHITE, SDL_BLACK,
-                          "%s", str);
+                          "%s", gr->title);
 
         return PANE_HANDLER_RET_NO_ACTION;
     }
