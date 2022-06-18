@@ -48,7 +48,7 @@ typedef struct {
     double max_xval;
     double max_yval;
     double x_cursor;
-    double y_cursor;
+    double y_cursor;  // XXX title
     struct {
         double x;
         double y;
@@ -56,20 +56,32 @@ typedef struct {
     int n;
 } graph_t;
 
+typedef struct {
+    struct {
+        double d_mpc;
+        double v_kmps;
+        double z;
+        double h;
+    } g[1000];
+    int n;
+    int idx;
+} hubble_law_t;
+
 //
 // variables
 //
 
-static int       win_width, win_height;
-static double    disp_width;
+static int          win_width, win_height;
 
-static galaxy_t *galaxy;
-static graph_t   graph[4];
+static galaxy_t    *galaxy;
+static double       t;
+static int          num_visible;
+static hubble_law_t hl;
 
-static double    t;
-static int       num_visible;
+static graph_t      graph[4];
 
-static bool      time_run;
+static double       disp_width;
+static bool         time_run; // xxx other mode flags here
 
 //
 // prototypes
@@ -78,7 +90,7 @@ static bool      time_run;
 static void galaxy_sim_init(void);
 static void * time_run_thread(void *cx);
 static void *sim_thread(void *cx);
-static int sim_visible(double t_sim);
+static void sim_visible(double t_sim);
 
 static void display_init(void);
 static void display_hndlr(void);
@@ -113,6 +125,7 @@ static void galaxy_sim_init(void)
     graph_t *g;
 
     // allocate memory for the galaxy array
+    // xxx dont need to malloc?
     size = MAX_GALAXY * sizeof(galaxy_t);
     galaxy = malloc(size);
     if (galaxy == NULL) {
@@ -124,10 +137,16 @@ static void galaxy_sim_init(void)
     // randomly chosen in a box that is 2000 BLYR x 2000 BLYR
     for (i = 0; i < MAX_GALAXY; i++) {
         galaxy_t *g = &galaxy[i];
-        g->x = random_range(-1000, 1000);
-        g->y = random_range(-1000, 1000);
+        if (i < 7) {
+            g->x = (30 * (i + 1)) * (M_PER_MPC / M_PER_BLYR);
+            g->y = 0;
+            g->t_create = 1;
+        } else {
+            g->x = random_range(-1000, 1000);
+            g->y = random_range(-1000, 1000);
+            g->t_create = random_triangular(0.75, 1.25);
+        }
         g->d = sqrt(squared(g->x) + squared(g->y));
-        g->t_create = random_triangular(0.75, 1.25);
     }
 
     // sort the galaxies by distance
@@ -185,6 +204,18 @@ static void galaxy_sim_init(void)
     }
     g->n = MAX_GRAPH_POINTS;
 
+// XXX 
+    // init hubble law graph
+    g = &graph[3];
+    g->exists    = true;
+    g->x_str     = "XXX";
+    g->y_str     = "XXX";
+    g->max_xval  = 1000;
+    g->max_yval  = 100000;  //xxx 60000;
+    g->x_cursor  = 0; //XXX
+    g->y_cursor  = NO_VALUE;
+    g->n = 0;
+
     // create the sim_thread and time_run_thread
     pthread_create(&tid, NULL, sim_thread, NULL);
     pthread_create(&tid, NULL, time_run_thread, NULL);
@@ -192,6 +223,7 @@ static void galaxy_sim_init(void)
 
 static void * time_run_thread(void *cx)
 {
+    // xxx comments
     while (true) {
         if (time_run) {
             t += .02;
@@ -218,23 +250,20 @@ static void * sim_thread(void *cx)
 
         // run simulation to determine which galaxies are visible
         t_sim_inprog = t;
-        num_visible = sim_visible(t_sim_inprog);
+        sim_visible(t_sim_inprog);
         t_sim_done = t_sim_inprog;
-
-        // update the graph of num_visible 
-        assert(t_sim_done >= .00038 && t_sim_done < 100);
-        int i = (t_sim_done / 100) * MAX_GRAPH_POINTS;
-        graph[2].p[i].y = num_visible;
     }
 
     return NULL;
 }
 
-static int sim_visible(double t_sim)
+static void sim_visible(double t_sim)
 {
     // backtrack a photon 
     // at each step check to see which galaxies are now closer to earth than the photon,
     // mark these as visible
+
+    assert(t_sim >= .00038 && t_sim < 100);
 
     // xxx comments
 
@@ -279,8 +308,45 @@ static int sim_visible(double t_sim)
         galaxy[i].t_visible = 0;
     }
 
-    return numv;
+    // XXX new routine ?  AND, fill in the graph
+    double sfo, sfe, d, z, v, d_mpc, v_kmps;
+    int n = 0;
+
+    sfo = get_sf(t_sim);   // scale factor observed
+    for (int i = 0; i < MAX_GALAXY; i++) {
+        galaxy_t *g = &galaxy[i];
+        if (g->t_visible == 0) {
+            continue;
+        }
+
+        sfe = get_sf(g->t_visible);    // scale factor emitted
+        d = g->d * sfo;
+        z = (sfo / sfe) - 1;
+        v = c_si * z;
+
+        d_mpc =  d * (M_PER_BLYR / M_PER_MPC);
+        v_kmps = v / M_PER_KM;
+
+        if (d_mpc >= 1000 || z > .3) {  // xxx z
+            break;
+        }
+
+        hl.g[n].d_mpc = d_mpc;
+        hl.g[n].v_kmps = v_kmps;
+        hl.g[n].z = z;
+        hl.g[n].h = v_kmps / d_mpc;
+        n++;
+    }
+    hl.n = n;
+
+    // xxx publish
+    num_visible = numv;
+    // update the graph of num_visible 
+    int i = (t_sim / 100) * MAX_GRAPH_POINTS;
+    assert(i >= 0 && i < MAX_GRAPH_POINTS);
+    graph[2].p[i].y = num_visible;
 }
+
 
 // -----------------  DISPLAY  ------------------------------------
 
@@ -352,6 +418,23 @@ static void display_start(void *cx)
     graph[1].y_cursor = get_h(t);
     graph[2].x_cursor = t;
     graph[2].y_cursor = num_visible;
+
+#if 0
+    // update the graph of num_visible 
+    assert(t_sim_done >= .00038 && t_sim_done < 100);
+    int i = (t_sim_done / 100) * MAX_GRAPH_POINTS;
+    graph[2].p[i].y = num_visible;
+#endif
+
+    for (int i = 0; i < hl.n; i++) {
+        graph[3].p[i].x = hl.g[i].d_mpc;
+        graph[3].p[i].y = hl.g[i].v_kmps;
+    }
+    graph[3].n = hl.n;
+    if (hl.idx < 0 || hl.idx >= hl.n) {
+        hl.idx = 0;
+    }
+    graph[3].x_cursor = hl.g[hl.idx].d_mpc;
 }
 
 // - - - - - - - - -  MAIN PANE HNDLR  - - - - - - - - - - - -
@@ -546,6 +629,7 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
         case SDL_EVENT_KEY_INSERT:
         case SDL_EVENT_KEY_HOME:
         case SDL_EVENT_KEY_END:;
+            // xxx also use alt arrows
             // adjust t
             if (event->event_id == SDL_EVENT_KEY_INSERT) {
                 t = .000380;
@@ -554,15 +638,23 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
             } else if (event->event_id == SDL_EVENT_KEY_END) {
                 t = 99.9999;
             } else {
+                double _t = t;
                 switch (event->event_id) {
-                case SDL_EVENT_KEY_RIGHT_ARROW:       t += .1;    break;
-                case SDL_EVENT_KEY_LEFT_ARROW:        t -= .1;    break;
-                case SDL_EVENT_KEY_SHIFT_RIGHT_ARROW: t += 1;  break;
-                case SDL_EVENT_KEY_SHIFT_LEFT_ARROW:  t -= 1;  break;
+                case SDL_EVENT_KEY_RIGHT_ARROW:       _t += .1;    break;
+                case SDL_EVENT_KEY_LEFT_ARROW:        _t -= .1;    break;
+                case SDL_EVENT_KEY_SHIFT_RIGHT_ARROW: _t += 1;  break;
+                case SDL_EVENT_KEY_SHIFT_LEFT_ARROW:  _t -= 1;  break;
                 }
-                if (t < .00038) t = .00038;
-                if (t >= 100) t = 99.9999;
+                if (_t < .00038) _t = .00038;
+                if (_t >= 100) _t = 99.9999;
+                t = _t;
             }
+            break;
+        case '1':
+            if (hl.idx > 0) hl.idx--;
+            break;
+        case '2':
+            if (hl.idx < hl.n-1) hl.idx++;
             break;
         default: 
             break;
@@ -636,7 +728,7 @@ static int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params
                           ((g->p[i].y / g->max_yval) * (pane->h - ROW2Y(1,FONT_SZ)));
             n++;
         }
-        sdl_render_points(pane, points, n, SDL_WHITE, 1);
+        sdl_render_points(pane, points, n, SDL_WHITE, 2);  // xxx 1
 
         // print max_yval
         sdl_render_printf(pane, 0, ROW2Y(1,FONT_SZ), 
@@ -651,9 +743,9 @@ static int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params
 
         // display cursor
         xi = (g->x_cursor / g->max_xval) * pane->w;
-        sdl_render_line(pane, xi-1, pane->h-1, xi-1, ROW2Y(2,FONT_SZ), SDL_WHITE);
+        //sdl_render_line(pane, xi-1, pane->h-1, xi-1, ROW2Y(2,FONT_SZ), SDL_WHITE);
         sdl_render_line(pane, xi-0, pane->h-1, xi-0, ROW2Y(2,FONT_SZ), SDL_WHITE);
-        sdl_render_line(pane, xi+1, pane->h-1, xi+1, ROW2Y(2,FONT_SZ), SDL_WHITE);
+        //sdl_render_line(pane, xi+1, pane->h-1, xi+1, ROW2Y(2,FONT_SZ), SDL_WHITE);
 
         // display title
         if (g->y_cursor != NO_VALUE) {

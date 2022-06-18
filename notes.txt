@@ -138,3 +138,18 @@ https://en.wikipedia.org/wiki/Observable_universe#:~:text=The%20observable%20uni
            1
 a(t) = ------------
         1 + z
+
+----------------
+
+redshift velocity
+https://en.wikipedia.org/wiki/Hubble%27s_law#Redshift_velocity
+z ~= v/c
+z = lamdao / lamdae
+
+https://en.wikipedia.org/wiki/Hubble%27s_law#:~:text=Hubble's%20law%2C%20also%20known%20as,are%20moving%20away%20from%20Earth.
+
+
+
+https://aip.scitation.org/doi/10.1063/9780735421141_001#:~:text=The%20distance%20to%20the%20center,galaxies%20in%20the%20observable%20universe.
+The distance to the center of our galaxy is roughly 30,000 light years, while the distance across the whole galaxy is approximately 100,000 light years. 
+The average distance between galaxies is about one million light years. There are roughly 100 billion galaxies in the observable universe.
