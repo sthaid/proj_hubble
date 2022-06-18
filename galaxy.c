@@ -26,7 +26,7 @@
 #define MAX_GALAXY 1000000
 #define MAX_GRAPH_POINTS 796
 
-#define NO_VALUE -999  // xxx used?
+#define NO_VALUE -999
 
 #define PRECISION(x) ((x) == 0 ? 0 : (x) < .001 ? 6 : (x) < 1 ? 3 : (x) < 100 ? 1 : 0)
 
@@ -80,7 +80,8 @@ static hubble_law_t hl;
 static graph_t      graph[4];
 
 static double       disp_width;
-static bool         time_run; // xxx other mode flags here
+static bool         time_run;
+static bool         auto_disp_width;
 
 //
 // prototypes
@@ -204,7 +205,7 @@ static void galaxy_sim_init(void)
 
 static void * time_run_thread(void *cx)
 {
-    // xxx comments
+    // if the time_run flag is set then advance the sim time by .02 BYR every 20 ms
     while (true) {
         if (time_run) {
             t += .02;
@@ -240,32 +241,46 @@ static void * sim_thread(void *cx)
 
 static void sim_visible(double t_sim)
 {
-    // backtrack a photon 
-    // at each step check to see which galaxies are now closer to earth than the photon,
-    // mark these as visible
-
-    assert(t_sim >= .00038 && t_sim < 100);
-
-    // xxx comments
+    // This routine calculates the distance of a photon from the perpetual earth 
+    // going backward in time. The starting time is the simulation time 't' or 't_sim', at
+    // which time the distance of the photon from earth (d_photon) is 0.
+    //
+    // The distance of the photon is updated in time steps of -DELTA_T_SECS (-10000 yrs), until
+    // the time reaches 0.75 BYR, which is the time that there are no galaxies in this simulation.
+    //
+    // At each time step the distance of the photon from the earth is compared with the 
+    // distance of the galaxies from the earth at that time. If the distance of the photon has 
+    // become greater than the distance to a galaxy then that galaxy is visible from the earth. 
+    // The time that the photon would have left the visible galaxy and later arrived at earth 
+    // is t_photon.
 
     double d_photon_si, t_photon_si;
     double d_photon, t_photon;
     double h_si, sf;
     int idx, numv;
 
+    assert(t_sim >= .00038 && t_sim < 100);
+
+    // init photon backtracing variables
     d_photon_si = 0;
     t_photon_si = t_sim * S_PER_BYR;
     idx = 0;
     numv = 0;
 
+    // backtrack the photon from starting time t_sim to time 0.75 BYR
     while (true) {
+        // calculate the position of the photon for time step of -DELTA_T_SECS
         h_si  = get_hsi(t_photon_si - DELTA_T_SECS);
         d_photon_si = (d_photon_si + c_si * DELTA_T_SECS) / (1 + h_si * DELTA_T_SECS);
         t_photon_si -= DELTA_T_SECS;
 
+        // convert the photon distance and time from SI units to BLYR and BYR
         d_photon = d_photon_si / M_PER_BLYR;
         t_photon = t_photon_si / S_PER_BYR;
 
+        // for all the galaxies that the photon now exceeds distance, set the
+        // galaxies t_visisble, which indicates both that the galaxy is visible 
+        // from earth and the time of the photon leaving the galaxy
         sf = get_sf(t_photon);
         while (idx < MAX_GALAXY && d_photon > galaxy[idx].d * sf) {
             if (t_photon > galaxy[idx].t_create) {
@@ -277,20 +292,28 @@ static void sim_visible(double t_sim)
             idx++;
         }
 
+        // in this simulation there should always be galaxies that are not visible
+        assert(idx < MAX_GALAXY);
+
+        // this simulation has no galaxies prior to 0.75 BYR, so when t_photon is 
+        // less than 0.75 break out of this loop
         if (t_photon < 0.75) {
-            break;
-        }
-        if (idx == MAX_GALAXY) {
             break;
         }
     }
 
-    // xxx comment
+    // set t_visible to 0 for the rest of the galaxies
     for (int i = idx; i < MAX_GALAXY; i++) {
         galaxy[i].t_visible = 0;
     }
 
-    // xxx comment
+    // This section supports the Hubble Law graph.
+    //
+    // For galaxies that are visible and whose distance < 1000 MPC and z < .3,
+    // add the information for these galaxies to the Hubble Law (hl) table.
+    //
+    // This table is used to display the Hubble Law graph (graph[3]).
+
     double sfo, sfe, d, z, v, d_mpc, v_kmps;
     int n = 0;
 
@@ -309,7 +332,7 @@ static void sim_visible(double t_sim)
         d_mpc =  d * (M_PER_BLYR / M_PER_MPC);
         v_kmps = v / M_PER_KM;
 
-        if (d_mpc >= 1000 || z > .3) {  // xxx z
+        if (d_mpc >= 1000 || z > .3) {
             break;
         }
 
@@ -321,10 +344,10 @@ static void sim_visible(double t_sim)
     }
     hl.n = n;
 
-    // xxx comment
+    // publish num_visible
     num_visible = numv;
 
-    // update the graph of num_visible 
+    // add the num_visible value to the Num Visible graph (graph[2])
     int i = (t_sim / 100) * MAX_GRAPH_POINTS;
     assert(i >= 0 && i < MAX_GRAPH_POINTS);
     graph[2].p[i].y = num_visible;
@@ -345,7 +368,7 @@ static void display_init(void)
     win_width  = REQUESTED_WIN_WIDTH;
     win_height = REQUESTED_WIN_HEIGHT;
     if (sdl_init(&win_width, &win_height, fullscreen, resizeable, swap_white_black) < 0) {
-        printf("ERROR sdl_init %dx%d failed\n", win_width, win_height);
+        printf("ERROR: sdl_init %dx%d failed\n", win_width, win_height);
         exit(1);
     }
     printf("REQUESTED win_width=%d win_height=%d\n", REQUESTED_WIN_WIDTH, REQUESTED_WIN_HEIGHT);
@@ -353,7 +376,7 @@ static void display_init(void)
 
     // if created window does not have the requested size then exit
     if (win_width != REQUESTED_WIN_WIDTH || win_height != REQUESTED_WIN_HEIGHT) {
-        printf("ERROR failed to create window with requested size\n");
+        printf("ERROR: failed to create window with requested size\n");
         exit(1);
     }
 }
@@ -389,12 +412,6 @@ static void display_hndlr(void)
 }
 
 // - - - - - - - - -  DISPLAY START - -- - - - - - - - - - - -
-#if 0 //xxx
-    // update the graph of num_visible 
-    assert(t_sim_done >= .00038 && t_sim_done < 100);
-    int i = (t_sim_done / 100) * MAX_GRAPH_POINTS;
-    graph[2].p[i].y = num_visible;
-#endif
 
 // this routine is called prior to pane handlers
 static void display_start(void *cx)
@@ -402,6 +419,7 @@ static void display_start(void *cx)
     double sf = get_sf(t);
     double h = get_h(t);
     graph_t *gr;
+    int i;
 
     // initialize the graphs cursor x,y values
     gr = &graph[0];
@@ -446,7 +464,6 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
     #define SDL_EVENT_TIME_RUN     (SDL_EVENT_USER_DEFINED + 2)
 
     static int yellow[256];
-    static bool auto_disp_width = false;
 
     assert(pane->w == pane->h);
 
@@ -491,9 +508,11 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
         if (yidx > 255) yidx = 255;
         sdl_render_fill_rect(pane, &(rect_t){0,0,pane->w, pane->h}, yellow[yidx]);
 
-        // xxx comment
-        // - 1 is visible
-        // - 2 not visible
+        // Display the galaxies that are visible as white points and the
+        // galaxies that are not visible as blue points.
+        //
+        // The points1 array is for the visible galaxies (displayed white)
+        // The points2 array is for the not visible galaxies (displayed blue)
         #define MAX_GALAXY_POINTS 500
 
         point_t points1[MAX_GALAXY_POINTS];
@@ -605,7 +624,7 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
         case SDL_EVENT_KEY_DOWN_ARROW:
         case SDL_EVENT_KEY_SHIFT_UP_ARROW:
         case SDL_EVENT_KEY_SHIFT_DOWN_ARROW:
-            // adjust disp_width  use similar method as t
+            // adjust disp_width
             if (auto_disp_width) {
                 break;
             }
@@ -623,8 +642,7 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
         case SDL_EVENT_KEY_INSERT:
         case SDL_EVENT_KEY_HOME:
         case SDL_EVENT_KEY_END:;
-            // xxx also use alt arrows
-            // adjust t
+            // adjust t   xxx ALT arrows?
             if (event->event_id == SDL_EVENT_KEY_INSERT) {
                 t = .000380;
             } else if (event->event_id == SDL_EVENT_KEY_HOME) {
@@ -722,7 +740,7 @@ static int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params
                           ((gr->p[i].y / gr->max_yval) * (pane->h - ROW2Y(1,FONT_SZ)));
             n++;
         }
-        sdl_render_points(pane, points, n, SDL_WHITE, 2);  // xxx 1
+        sdl_render_points(pane, points, n, SDL_WHITE, 2);
 
         // print max_yval
         sdl_render_printf(pane, 0, ROW2Y(1,FONT_SZ), 
