@@ -205,10 +205,12 @@ static void galaxy_sim_init(void)
 
 static void * time_run_thread(void *cx)
 {
+    #define TIME_RUN_INCR .02
+
     // if the time_run flag is set then advance the sim time by .02 BYR every 20 ms
     while (true) {
         if (time_run) {
-            t += .02;
+            t += TIME_RUN_INCR;
             if (t >= 100) {
                 t = 99.9999;
                 time_run = false;
@@ -419,7 +421,6 @@ static void display_start(void *cx)
     double sf = get_sf(t);
     double h = get_h(t);
     graph_t *gr;
-    int i;
 
     // initialize the graphs cursor x,y values
     gr = &graph[0];
@@ -642,7 +643,7 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
         case SDL_EVENT_KEY_INSERT:
         case SDL_EVENT_KEY_HOME:
         case SDL_EVENT_KEY_END:;
-            // adjust t   xxx ALT arrows?
+            // adjust t
             if (event->event_id == SDL_EVENT_KEY_INSERT) {
                 t = .000380;
             } else if (event->event_id == SDL_EVENT_KEY_HOME) {
