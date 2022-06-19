@@ -236,10 +236,6 @@ double get_sf(double t)
 {
     double a;
 
-    if (t < T_START) {
-        return 0;
-    }
-
     if (t >= JOIN_START && t < JOIN_END) {
         a = join_get_y(t);
     } else if (t < 9.8) {  // t >= .000380 && t < 9.8
@@ -396,9 +392,10 @@ static void get_diameter_init(void)
     // calculate the diameter, d_backtrack_end and max_photon_distance for 
     // range of times from .01 to 200 BYR
     printf("creating diameter table file %s ...\n", filename);
-    for (t = T_START; t <= 101; t += t_incr) {
+    for (t = T_START; t <= (T_MAX+3); t += t_incr) {
         diameter = get_diameter_ex(t, &d_backtrack_end, &max_photon_distance);
-        printf("  %d - t=%0.6f diameter=%f\n", ++cnt, t, diameter);
+        printf("  %d - t=%0.6f diameter=%f d_backtrack_end=%f max_photon_distance=%f\n", 
+               ++cnt, t, diameter, d_backtrack_end, max_photon_distance);
 
         if (max_tbl >= MAX_TBL) {
             printf("ERROR: diamter tbl is full\n");
@@ -414,7 +411,8 @@ static void get_diameter_init(void)
         t_incr = (t < 0.01-e ? DELTA_T_SECS/S_PER_BYR :
                   t < 0.1-e  ? 0.001 :
                   t < 1.0-e  ? 0.01  :
-                             0.1);
+                  t < 100-e  ? 0.1   :
+                               1);
     }
 
     // write tbl of results to file sf.dat
@@ -558,14 +556,14 @@ double get_diameter_ex(double t_backtrack_start, double *d_backtrack_end_arg, do
             max_d_photon_si = d_photon_si;
         }
 
-        if (t_si < (.00038 * S_PER_BYR + DELTA_T_SECS/2)) {
-            break;
-        }
-
-        if (d_photon_si < 0) {
-            printf("ERROR: d_photon_si>=0: d_photon_si=%f h=%f t=%f t_backtrack_start=%f\n", 
+        if (d_photon_si <= 0) {
+            printf("ERROR: d_photon_si=%f h=%f t=%f t_backtrack_start=%f\n", 
                    d_photon_si, h_si/H_TO_SI, t_si/S_PER_BYR, t_backtrack_start);
             exit(1);
+        }
+
+        if (t_si < (.00038 * S_PER_BYR + DELTA_T_SECS/2)) {
+            break;
         }
     }
 

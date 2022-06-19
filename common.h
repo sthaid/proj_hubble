@@ -31,6 +31,7 @@
 
 #define T_START      0.000380   // time when the universe became transparent
 #define TEMP_START   3000.      // temperature of CMB at T_START
+#define T_MAX        200.       // max time supported by code in sf.c
 
 // sf.c
 void sf_init(void);
