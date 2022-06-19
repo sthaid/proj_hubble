@@ -14,21 +14,12 @@
 //   1.25
 
 #include <common.h>
-#include <util_sdl.h>
 
 //
 // defines
 //
 
-#define MB 0x100000
-#define FONT_SZ 24
-
 #define MAX_GALAXY 1000000
-#define MAX_GRAPH_POINTS 796
-
-#define NO_VALUE -999
-
-#define PRECISION(x) ((x) == 0 ? 0 : (x) < .001 ? 6 : (x) < 1 ? 3 : (x) < 100 ? 1 : 0)
 
 //
 // typdedefs
@@ -41,19 +32,6 @@ typedef struct {
     float t_create;
     float t_visible;
 } galaxy_t;
-
-typedef struct {
-    bool exists;
-    double max_xval;
-    double max_yval;
-    double x_cursor;
-    char title[100];
-    struct {
-        double x;
-        double y;
-    } p[MAX_GRAPH_POINTS];
-    int n;
-} graph_t;
 
 typedef struct {
     struct {
@@ -77,11 +55,11 @@ static double       t;
 static int          num_visible;
 static hubble_law_t hl;
 
-static graph_t      graph[4];
-
 static double       disp_width;
 static bool         time_run;
 static bool         auto_disp_width;
+
+graph_t graph[4];
 
 //
 // prototypes
@@ -96,7 +74,6 @@ static void display_init(void);
 static void display_hndlr(void);
 static void display_start(void *cx);
 static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event);
-static int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event);
 
 static double squared(double x);
 static double get_temperature(double t);
@@ -122,7 +99,7 @@ static void galaxy_sim_init(void)
     pthread_t tid;
     size_t size;
     int i;
-    graph_t *g;
+    graph_t *gr;
 
     // allocate memory for the galaxy array
     size = MAX_GALAXY * sizeof(galaxy_t);
@@ -156,47 +133,47 @@ static void galaxy_sim_init(void)
     disp_width = get_diameter(t,NULL,NULL);
 
     // init scale factor graph
-    g = &graph[0];
-    g->exists    = true;
-    g->max_xval  = 100;
-    g->max_yval  = get_sf(100);
+    gr = &graph[0];
+    gr->exists    = true;
+    gr->max_xval  = 100;
+    gr->max_yval  = get_sf(100);
     for (i = 0; i < MAX_GRAPH_POINTS; i++) {
-        double tg = (i + 0.5) * (g->max_xval / MAX_GRAPH_POINTS);
-        g->p[i].x = tg;
-        g->p[i].y = get_sf(tg);
+        double tg = (i + 0.5) * (gr->max_xval / MAX_GRAPH_POINTS);
+        gr->p[i].x = tg;
+        gr->p[i].y = get_sf(tg);
     }
-    g->n = MAX_GRAPH_POINTS;
+    gr->n = MAX_GRAPH_POINTS;
 
     // init hubble param graph
-    g = &graph[1];
-    g->exists    = true;
-    g->max_xval  = 100;
-    g->max_yval  = 1000;
+    gr = &graph[1];
+    gr->exists    = true;
+    gr->max_xval  = 100;
+    gr->max_yval  = 1000;
     for (i = 0; i < MAX_GRAPH_POINTS; i++) {
-        double tg = (i + 0.5) * (g->max_xval / MAX_GRAPH_POINTS);
-        g->p[i].x = tg;
-        g->p[i].y = get_h(tg);
+        double tg = (i + 0.5) * (gr->max_xval / MAX_GRAPH_POINTS);
+        gr->p[i].x = tg;
+        gr->p[i].y = get_h(tg);
     }
-    g->n = MAX_GRAPH_POINTS;
+    gr->n = MAX_GRAPH_POINTS;
 
     // init num_visible graph
-    g = &graph[2];
-    g->exists    = true;
-    g->max_xval  = 100;
-    g->max_yval  = 1800;
+    gr = &graph[2];
+    gr->exists    = true;
+    gr->max_xval  = 100;
+    gr->max_yval  = 1800;
     for (i = 0; i < MAX_GRAPH_POINTS; i++) {
-        double _t = (i + 0.5) * (g->max_xval / MAX_GRAPH_POINTS);
-        g->p[i].x = _t;
-        g->p[i].y = NO_VALUE;
+        double _t = (i + 0.5) * (gr->max_xval / MAX_GRAPH_POINTS);
+        gr->p[i].x = _t;
+        gr->p[i].y = NO_VALUE;
     }
-    g->n = MAX_GRAPH_POINTS;
+    gr->n = MAX_GRAPH_POINTS;
 
     // init hubble law graph; the graph points are initialized in display_start
-    g = &graph[3];
-    g->exists    = true;
-    g->max_xval  = 1000;
-    g->max_yval  = 100000;
-    g->n = 0;
+    gr = &graph[3];
+    gr->exists    = true;
+    gr->max_xval  = 1000;
+    gr->max_yval  = 100000;
+    gr->n = 0;
 
     // create the sim_thread and time_run_thread
     pthread_create(&tid, NULL, sim_thread, NULL);
@@ -690,111 +667,12 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
     return PANE_HANDLER_RET_NO_ACTION;
 }
 
-// - - - - - - - - -  GRAPH PANE HNDLR  - - - - - - - - - - - -
-
-static int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event)
-{
-    struct {
-        int graph_idx;
-    } * vars = pane_cx->vars;
-    rect_t * pane = &pane_cx->pane;
-
-    // ----------------------------
-    // -------- INITIALIZE --------
-    // ----------------------------
-
-    if (request == PANE_HANDLER_REQ_INITIALIZE) {
-        vars = pane_cx->vars = calloc(1,sizeof(*vars));
-        vars->graph_idx = (long)init_params;
-
-        printf("GRAPH_PANE_%d x,y,w,h  %d %d %d %d\n",
-               vars->graph_idx,
-               pane->x, pane->y, pane->w, pane->h);
-
-        return PANE_HANDLER_RET_NO_ACTION;
-    }
-
-    // ------------------------
-    // -------- RENDER --------
-    // ------------------------
-
-    if (request == PANE_HANDLER_REQ_RENDER) {
-        graph_t *gr = &graph[vars->graph_idx];
-        static point_t points[1000];
-        char str[100];
-        int xi, n=0;
-
-        assert(gr->n <= ARRAY_SIZE(points));
-
-        // if this graph does not exist then return
-        if (!gr->exists) {
-            return PANE_HANDLER_RET_NO_ACTION;
-        }
-
-        // create the array of graph points that are to be displayed
-        for (int i = 0; i < gr->n; i++) {
-            if (gr->p[i].y == NO_VALUE) {
-                continue;
-            }
-            points[n].x = ((gr->p[i].x / gr->max_xval) * (pane->w));
-            points[n].y = (pane->h - 1) -
-                          ((gr->p[i].y / gr->max_yval) * (pane->h - ROW2Y(1,FONT_SZ)));
-            n++;
-        }
-        sdl_render_points(pane, points, n, SDL_WHITE, 2);
-
-        // print max_yval
-        sdl_render_printf(pane, 0, ROW2Y(1,FONT_SZ), 
-                          FONT_SZ, SDL_WHITE, SDL_BLACK,
-                          "%0.*f", PRECISION(gr->max_yval), gr->max_yval);
-
-        // print max_xval
-        sprintf(str, "%0.*f", PRECISION(gr->max_xval), gr->max_xval);
-        sdl_render_printf(pane, pane->w-COL2X(strlen(str),FONT_SZ), pane->h-ROW2Y(1,FONT_SZ), 
-                          FONT_SZ, SDL_WHITE, SDL_BLACK,
-                          "%s", str);
-
-        // display cursor
-        xi = (gr->x_cursor / gr->max_xval) * pane->w;
-        sdl_render_line(pane, xi-0, pane->h-1, xi-0, ROW2Y(2,FONT_SZ), SDL_WHITE);
-
-        // display title
-        sdl_render_printf(pane, COL2X(8,FONT_SZ), 0, 
-                          FONT_SZ, SDL_WHITE, SDL_BLACK,
-                          "%s", gr->title);
-
-        return PANE_HANDLER_RET_NO_ACTION;
-    }
-
-    // -----------------------
-    // -------- EVENT --------
-    // -----------------------
-
-    if (request == PANE_HANDLER_REQ_EVENT) {
-        return PANE_HANDLER_RET_DISPLAY_REDRAW;
-    }
-
-    // ---------------------------
-    // -------- TERMINATE --------
-    // ---------------------------
-
-    if (request == PANE_HANDLER_REQ_TERMINATE) {
-        free(vars);
-        return PANE_HANDLER_RET_NO_ACTION;
-    }
-
-    // not reached
-    assert(0);
-    return PANE_HANDLER_RET_NO_ACTION;
-}
-
 // -----------------  SUPPORT / UTILS  ----------------------------
 
 static double squared(double x)
 {
     return x * x;
 }
-
 
 static double get_temperature(double t)
 {

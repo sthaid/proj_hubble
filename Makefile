@@ -4,10 +4,10 @@ LDFLAGS  = -lm -lSDL2 -lSDL2_ttf -lpthread
 
 HDRS     = common.h util/util_misc.h util/util_sdl.h
 
-CMB_SRC  = cmb.c sf.c util/util_sdl.c util/util_misc.c
+CMB_SRC  = cmb.c graph.c sf.c util/util_sdl.c util/util_misc.c
 CMB_OBJ  = $(CMB_SRC:.c=.o)
 
-GALAXY_SRC  = galaxy.c sf.c util/util_sdl.c util/util_misc.c
+GALAXY_SRC  = galaxy.c graph.c sf.c util/util_sdl.c util/util_misc.c
 GALAXY_OBJ  = $(GALAXY_SRC:.c=.o)
 
 all: cmb galaxy

@@ -1,20 +1,10 @@
-// xxx
-// - README
-// - should reset the display_width
-// - match colors and other attribues with galaxy.c
-
 #include <common.h>
-#include <util_sdl.h>
 
 //
 // defines
 //
 
-#define FONT_SZ 24
-
 #define DEG2RAD(deg)  ((deg) * (M_PI / 180))
-
-#define MAX_GRAPH_POINTS 1000
 
 #define STATE_STR(x) \
     ((x) == RESET   ? "RESET"   : \
@@ -29,29 +19,20 @@
 
 typedef enum {RESET, RUNNING, PAUSED, DONE} state_t;
 
-typedef struct {
-    char *title;
-    char *units;
-    int precision;
-    double max_yval;
-    double y[MAX_GRAPH_POINTS];
-} graph_t;
-
 //
 // variables
 //
 
-int win_width, win_height;
-double disp_width;
+static int     win_width, win_height;
 
-state_t state;
-double  t_done;
+static state_t state;
+static double  t_done;
+static double  disp_width;
 
-double  t;
-double  d_start;
-double  d_space;
-double  d_photon;
-double  temperature;
+static double  t;
+static double  d_start;
+static double  d_space;
+static double  d_photon;
 
 graph_t graph[4];
 
@@ -59,16 +40,18 @@ graph_t graph[4];
 // prototypes
 //
 
-void cmb_sim_init(void);
-void *cmb_sim_thread(void *cx);
-void sim_reset(void);
-void sim_pause(void);
-void sim_resume(void);
+static void sim_init(void);
+static void *sim_thread(void *cx);
+static void sim_reset(void);
+static void sim_pause(void);
+static void sim_resume(void);
 
-void display_init(void);
-void display_hndlr(void);
-int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event);
-int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event);
+static void display_init(void);
+static void display_hndlr(void);
+static void display_start(void *cx);
+static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event);
+
+static double get_temperature(double t);
 
 // -----------------  MAIN  ---------------------------------------
   
@@ -76,7 +59,7 @@ int main(int argc, char **argv)
 {
     // init
     sf_init();
-    cmb_sim_init();
+    sim_init();
     display_init();
 
     // runtime
@@ -85,7 +68,7 @@ int main(int argc, char **argv)
 
 // -----------------  CMB SIM  ------------------------------------
 
-void cmb_sim_init(void)
+static void sim_init(void)
 {
     pthread_t tid;
 
@@ -93,14 +76,16 @@ void cmb_sim_init(void)
     sim_reset();
 
     // create the cmd_sim_thread
-    pthread_create(&tid, NULL, cmb_sim_thread, NULL);
+    pthread_create(&tid, NULL, sim_thread, NULL);
 }
 
-void * cmb_sim_thread(void *cx)
+static void *sim_thread(void *cx)
 {
     double d_photon_si, t_si, h_si;
     double sf, sf_t_start;
+    double temp;
     int count = 0;
+    graph_t *gr;
 
     sf_t_start = get_sf(T_START);
 
@@ -132,15 +117,30 @@ void * cmb_sim_thread(void *cx)
         // has expanded form T_START (.000380 BYR) to time 't'
         sf = get_sf(t);
         d_space = d_start * (sf / sf_t_start);
-        temperature = TEMP_START / (sf / sf_t_start);
+        temp = TEMP_START / (sf / sf_t_start);
 
         // save values to be displayed in the 4 graphs
         int gridx = (t / t_done) * MAX_GRAPH_POINTS;
         if (gridx >= 0 && gridx < MAX_GRAPH_POINTS) {
-            graph[0].y[gridx] = sf;
-            graph[1].y[gridx] = get_h(t);;
-            graph[2].y[gridx] = temperature;
-            graph[3].y[gridx] = d_photon;
+            gr = &graph[0];
+            gr->p[gridx].x = t;
+            gr->p[gridx].y = sf;
+            gr->n = gridx+1;
+
+            gr = &graph[1];
+            gr->p[gridx].x = t;
+            gr->p[gridx].y = get_h(t);
+            gr->n = gridx+1;
+
+            gr = &graph[2];
+            gr->p[gridx].x = t;
+            gr->p[gridx].y = temp;
+            gr->n = gridx+1;
+
+            gr = &graph[3];
+            gr->p[gridx].x = t;
+            gr->p[gridx].y = d_photon;
+            gr->n = gridx+1;
         }
 
         // if the CMB photon has reached the earth, then we're done
@@ -156,12 +156,13 @@ void * cmb_sim_thread(void *cx)
             count = 0;
         }
     }
+
+    return NULL;
 }
 
-// xxx arg to reset diamter
-void sim_reset(void)
+static void sim_reset(void)
 {
-    graph_t *g;
+    graph_t *gr;
     double initial_distance, max_photon_distance;
 
     if (t_done == 0 || disp_width == 0) {
@@ -173,53 +174,60 @@ void sim_reset(void)
 
     get_diameter(t_done, &initial_distance, &max_photon_distance);
 
-    d_start      = initial_distance;
     t            = T_START;
+    d_start      = initial_distance;
     d_photon     = initial_distance;
     d_space      = initial_distance;
-    temperature  = TEMP_START;
 
-    for (int i = 0; i < 4; i++) {
-        memset(graph[i].y, 0, sizeof(graph[i].y));
-    }
+    // clear graph data in preparation for re-init below
+    memset(graph,0,sizeof(graph));
 
-    g = &graph[0];
-    g->max_yval  = get_sf(t_done);
-    g->title     = "SCALE_FACTOR";
-    g->units     = "";
-    g->precision = 3;
-    g->y[0]      = get_sf(T_START);
+    // init scale factor graph
+    gr = &graph[0];
+    gr->exists    = true;
+    gr->max_xval  = t_done;
+    gr->max_yval  = get_sf(t_done);
+    gr->x_cursor  = NO_VALUE;
+    gr->p[0].x    = T_START;
+    gr->p[0].y    = get_sf(T_START);
+    gr->n         = 1;
 
-    g = &graph[1];
-    g->max_yval  = 1000;
-    g->title     = "HUBBLE";
-    g->units     = " KM/SEC/MPC";
-    g->precision = 0;
-    g->y[0]      = get_h(T_START);
+    gr = &graph[1];
+    gr->exists    = true;
+    gr->max_xval  = t_done;
+    gr->max_yval  = 1000;  // km/s/mpc
+    gr->x_cursor  = NO_VALUE;
+    gr->p[0].x    = T_START;
+    gr->p[0].y    = get_h(T_START);
+    gr->n         = 1;
 
-    g = &graph[2];
-    g->max_yval  = 100;
-    g->title     = "TEMP";
-    g->units     = " K";
-    g->precision = 1;
-    g->y[0]      = temperature;
+    gr = &graph[2];
+    gr->exists    = true;
+    gr->max_xval  = t_done;
+    gr->max_yval  = 100;  // degrees k
+    gr->x_cursor  = NO_VALUE;
+    gr->p[0].x    = T_START;
+    gr->p[0].y    = get_temperature(T_START);
+    gr->n         = 1;
 
-    g = &graph[3];
-    g->max_yval  = max_photon_distance;
-    g->title     = "PHOTON";
-    g->units     = " BLYR";
-    g->precision = 3;
-    g->y[0]      = d_photon;
+    gr = &graph[3];
+    gr->exists    = true;
+    gr->max_xval  = t_done;
+    gr->max_yval  = max_photon_distance;
+    gr->x_cursor  = NO_VALUE;
+    gr->p[0].x    = T_START;
+    gr->p[0].y    = d_photon;
+    gr->n         = 1;
 }
 
-void sim_pause(void)
+static void sim_pause(void)
 {
     if (state == RUNNING) {
         state = PAUSED;
     }
 }
 
-void sim_resume(void)
+static void sim_resume(void)
 {
     if (state == RESET || state == PAUSED) {
         state = RUNNING;
@@ -228,7 +236,7 @@ void sim_resume(void)
 
 // -----------------  DISPLAY  ------------------------------------
 
-void display_init(void)
+static void display_init(void)
 {
     bool fullscreen = false;
     bool resizeable = false;
@@ -254,7 +262,7 @@ void display_init(void)
     }
 }
 
-void display_hndlr(void)
+static void display_hndlr(void)
 {
     assert(win_width == 2*win_height);
 
@@ -262,7 +270,7 @@ void display_hndlr(void)
     // - this will not return except when it is time to terminate the program
     sdl_pane_manager(
         NULL,           // context
-        NULL,           // called prior to pane handlers
+        display_start,  // called prior to pane handlers
         NULL,           // called after pane handlers
         20000,          // 0=continuous, -1=never, else us
         5,              // number of pane handler varargs that follow
@@ -285,7 +293,38 @@ void display_hndlr(void)
 
 }
 
-int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event)
+// this routine is called prior to pane handlers
+static void display_start(void *cx)
+{
+    double sf, h, temp, d_photon;
+    graph_t *gr;
+
+    // initialize the graphs cursor x,y values
+    gr = &graph[0];
+    assert(gr->n > 0 && gr->n <= MAX_GRAPH_POINTS);
+    sf = gr->p[gr->n-1].y;
+    sprintf(gr->title, "T=%.*f  SF=%.*f", PRECISION(t), t, PRECISION(sf), sf);
+
+    gr = &graph[1];
+    assert(gr->n > 0 && gr->n <= MAX_GRAPH_POINTS);
+    h = gr->p[gr->n-1].y;
+    sprintf(gr->title, "T=%.*f  H=%.*f", PRECISION(t), t, PRECISION(h), h);
+
+    gr = &graph[2];
+    assert(gr->n > 0 && gr->n <= MAX_GRAPH_POINTS);
+    temp = gr->p[gr->n-1].y;
+    sprintf(gr->title, "T=%.*f  TEMPERATURE=%.*f", PRECISION(t), t, PRECISION(temp), temp);
+
+    gr = &graph[3];
+    assert(gr->n > 0 && gr->n <= MAX_GRAPH_POINTS);
+    d_photon = gr->p[gr->n-1].y;
+    if (d_photon < 0) d_photon = 0;
+    sprintf(gr->title, "T=%.*f  D_PHOTON=%.*f", PRECISION(t), t, PRECISION(d_photon), d_photon);
+}
+
+// - - - - - - - - -  MAIN PANE HNDLR  - - - - - - - - - - - - - - - - 
+
+static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event)
 {
     struct {
         int nothing_yet;
@@ -327,9 +366,10 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         char *ctrl_str;
         char title_str[100];
         int len;
+        double temp = get_temperature(t);
 
         // display yellow background, the intensity represents the temperature
-        yidx = log(temperature) * (255. / 8.);
+        yidx = log(temp) * (255. / 8.);
         if (yidx < 0) yidx = 0;
         if (yidx > 255) yidx = 255;
         sdl_render_fill_rect(pane, &(rect_t){0,0,pane->w, pane->h}, yellow[yidx]);
@@ -378,8 +418,8 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
             SDL_EVENT_ZOOM, SDL_EVENT_TYPE_MOUSE_WHEEL, pane_cx);
 
         // display current state at top middle
-        sprintf(title_str, "%s  DISPLAY_WIDTH=%0.*f",\
-            STATE_STR(state), PRECISION(disp_width), disp_width);
+        sprintf(title_str, "DISPLAY_WIDTH=%0.*f",\
+                PRECISION(disp_width), disp_width);
         len = strlen(title_str);
         sdl_render_printf(
             pane, pane->w/2 - COL2X(len,FONT_SZ/2), 0,
@@ -402,7 +442,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
         sdl_render_printf(
             pane, 0, ROW2Y(4,FONT_SZ),
             FONT_SZ, SDL_WHITE, SDL_BLACK, "TEMP   %-8.*f",
-            PRECISION(temperature), temperature);
+            PRECISION(temp), temp);
         sdl_render_printf(
             pane, 0, ROW2Y(5,FONT_SZ),
             FONT_SZ, SDL_WHITE, SDL_BLACK, "PHOTON %-8.*f",
@@ -473,7 +513,7 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
                 case SDL_EVENT_KEY_SHIFT_LEFT_ARROW:  t_done -= 1;  break;
                 }
                 if (t_done < .1+e) t_done = .1;
-                if (t_done > 100-e) t_done = 100;
+                if (t_done > T_MAX-e) t_done = T_MAX;
                 sim_reset();
                 disp_width = get_diameter(t_done, NULL, NULL);
             }
@@ -499,97 +539,13 @@ int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_ev
     return PANE_HANDLER_RET_NO_ACTION;
 }
 
-int graph_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params, sdl_event_t * event)
+// -----------------  SUPPORT UTILS  ---------------------------------------
+
+static double get_temperature(double t)
 {
-    struct {
-        int graph_idx;
-    } * vars = pane_cx->vars;
-    rect_t * pane = &pane_cx->pane;
+    double temp;
 
-    // ----------------------------
-    // -------- INITIALIZE --------
-    // ----------------------------
-
-    if (request == PANE_HANDLER_REQ_INITIALIZE) {
-        vars = pane_cx->vars = calloc(1,sizeof(*vars));
-        vars->graph_idx = (long)init_params;
-
-        printf("GRAPH_PANE_%d x,y,w,h  %d %d %d %d\n",
-               vars->graph_idx,
-               pane->x, pane->y, pane->w, pane->h);
-
-        return PANE_HANDLER_RET_NO_ACTION;
-    }
-
-    // ------------------------
-    // -------- RENDER --------
-    // ------------------------
-
-    if (request == PANE_HANDLER_REQ_RENDER) {
-        graph_t *g = &graph[vars->graph_idx];
-        int      n = 0;
-        point_t  points[MAX_GRAPH_POINTS];
-        int      last_i = -1;
-
-        // create the array of graph points that are to be displayed
-        for (int i = 0; i < MAX_GRAPH_POINTS; i++) {
-            double yval = g->y[i];
-            if (yval == 0) continue;
-
-            last_i = i;
-
-            points[n].x = ((double)i / MAX_GRAPH_POINTS) * pane->w;
-            points[n].y = (pane->h - 1) -
-                          ((yval / g->max_yval) * (0.85 * pane->h));
-            n++;
-        }
-
-        // if there are no graph points to display then return
-        if (last_i == -1) {
-            return PANE_HANDLER_RET_NO_ACTION;
-        }
-
-        // determine the time of the last graph point
-        double t = last_i * (t_done / MAX_GRAPH_POINTS);
-        if (t == 0) {
-            t = T_START;
-        }
-
-        // display the title line
-        int t_precision = (t < .001 ? 6 : t < 1 ? 3 : 1);
-        sdl_render_printf(
-              pane, COL2X(2,FONT_SZ), 0, FONT_SZ,
-              SDL_WHITE, SDL_BLACK, 
-              "%s %0.*f%s - T %0.*f BYR - YMAX %0.*f",
-              g->title, g->precision, g->y[last_i], g->units,
-              t_precision, t,
-              g->precision, g->max_yval);
-
-        // display the points
-        sdl_render_points(pane, points, n, SDL_WHITE, 1);
-
-        return PANE_HANDLER_RET_NO_ACTION;
-    }
-
-    // -----------------------
-    // -------- EVENT --------
-    // -----------------------
-
-    if (request == PANE_HANDLER_REQ_EVENT) {
-        return PANE_HANDLER_RET_DISPLAY_REDRAW;
-    }
-
-    // ---------------------------
-    // -------- TERMINATE --------
-    // ---------------------------
-
-    if (request == PANE_HANDLER_REQ_TERMINATE) {
-        free(vars);
-        return PANE_HANDLER_RET_NO_ACTION;
-    }
-
-    // not reached
-    assert(0);
-    return PANE_HANDLER_RET_NO_ACTION;
+    temp = TEMP_START / (get_sf(t) / get_sf(T_START));
+    return temp;
 }
 

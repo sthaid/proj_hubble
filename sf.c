@@ -82,10 +82,10 @@
 typedef struct {
     double x;
     double y;
-} point_t;
+} xpoint_t;
 
 typedef struct {
-    point_t p;
+    xpoint_t p;
     double theta;
 } line_t;
 
@@ -114,9 +114,9 @@ static void get_diameter_init(void);
 static void join_init(line_t *l1, line_t *l2);
 static double join_get_y(double x);
 static double squared(double x);
-static double distance(point_t *p1, point_t *p2);
+static double distance(xpoint_t *p1, xpoint_t *p2);
 static line_t move_line_point(line_t *l, double d);
-static point_t intersect(line_t *l1, line_t *l2);
+static xpoint_t intersect(line_t *l1, line_t *l2);
 static double interpolate(double x, double x0, double x1, double y0, double y1);
 
 // -----------------  SCALE FACTOR INIT  ------------------------------------
@@ -613,13 +613,13 @@ double get_diameter_ex(double t_backtrack_start, double *d_backtrack_end_arg, do
 // Joing_get_y is the function that returns the smooth joined y value.
 
 static double   x_start, x_end;
-static point_t  circle_p;
+static xpoint_t  circle_p;
 static double   circle_r;
-static point_t  p_line_start, p_line_end;
+static xpoint_t  p_line_start, p_line_end;
 
 static void join_init(line_t *l1, line_t *l2)
 {
-    point_t p; 
+    xpoint_t p; 
     double d1, d2, delta;
     line_t l1a, l2a;
 
@@ -688,7 +688,7 @@ static double squared(double x)
     return x * x;
 }
 
-static double distance(point_t *p1, point_t *p2)
+static double distance(xpoint_t *p1, xpoint_t *p2)
 {
     return sqrt(squared(p1->x - p2->x) + squared(p1->y - p2->y));
 }
@@ -704,7 +704,7 @@ static line_t move_line_point(line_t *l, double d)
 
 }
 
-static point_t intersect(line_t *l1, line_t *l2)
+static xpoint_t intersect(line_t *l1, line_t *l2)
 {
     double x1, y1, m1, x2, y2, m2;
     double x, y;
@@ -720,7 +720,7 @@ static point_t intersect(line_t *l1, line_t *l2)
     x = ((-m2*x2 + y2) - (-m1*x1+y1)) / (m1 - m2);
     y = m1 * (x - x1) + y1;
 
-    return (point_t){x,y};
+    return (xpoint_t){x,y};
 }
 
 static double interpolate(double x, double x0, double x1, double y0, double y1)
