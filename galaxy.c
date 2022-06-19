@@ -1,25 +1,17 @@
-// xxx  todo
-// - check all prints
-// - graphs
-//   - hubble law
-//   - diameter
-// - lock main pane to front
-// - limit on repeat key
-// - add cmd to reset display width
-// - use defines for
-//    13.8
-//    .00038
-//   100
-//   0.75
-//   1.25
-
 #include <common.h>
+#include <getopt.h>
 
 //
 // defines
 //
 
 #define MAX_GALAXY 1000000
+
+#define MIN_T_MAX      10.0
+#define MAX_T_MAX      T_MAX
+#define DEFAULT_T_MAX  100.0
+
+static_assert(DEFAULT_T_MAX >= MIN_T_MAX && DEFAULT_T_MAX <= MAX_T_MAX);
 
 //
 // typdedefs
@@ -55,9 +47,10 @@ static double       t;
 static int          num_visible;
 static hubble_law_t hl;
 
-static double       disp_width;
+static double       t_max = DEFAULT_T_MAX;
 static bool         time_run;
 static bool         auto_disp_width;
+static double       disp_width;
 
 graph_t graph[4];
 
@@ -65,7 +58,9 @@ graph_t graph[4];
 // prototypes
 //
 
-static void galaxy_sim_init(void);
+static void parse_options(int argc, char **argv);
+
+static void sim_init(void);
 static void *time_run_thread(void *cx);
 static void *sim_thread(void *cx);
 static void sim_visible(double t_sim);
@@ -83,29 +78,65 @@ static int qsort_compare(const void *a, const void *b);
   
 int main(int argc, char **argv)
 {
+    // parse options
+    parse_options(argc, argv);
+
     // init
     sf_init();
-    galaxy_sim_init();
+    sim_init();
     display_init();
 
     // runtime
     display_hndlr();
 }
 
+static void parse_options(int argc, char **argv)
+{
+    while (true) {
+        static struct option opts[] = {
+            {"t_max", required_argument, 0, 0},
+            {0,       0,                 0, 0},
+        };
+        int c, opt_idx;
+
+        c = getopt_long(argc, argv, "", opts, &opt_idx);
+        if (c == 0) {
+            switch (opt_idx) {
+            case 0:
+                if (sscanf(optarg, "%lf", &t_max) != 1 ||
+                    t_max < MIN_T_MAX || t_max > MAX_T_MAX)
+                {
+                    printf("ERROR option t_max invalid value '%s'\n", optarg);
+                    exit(1);
+                }
+                break;
+            }
+        } else if (c == -1) {
+            break;
+        } else {
+            exit(1);
+        }
+    }
+}
+
 // -----------------  GALAXY SIM ----------------------------------
 
-static void galaxy_sim_init(void)
+static void sim_init(void)
 {
     pthread_t tid;
     size_t size;
     int i;
     graph_t *gr;
 
+    // set initial values for time and display width
+    t          = 13.8;
+    disp_width = get_diameter(t,NULL,NULL);
+
     // allocate memory for the galaxy array
     size = MAX_GALAXY * sizeof(galaxy_t);
     galaxy = malloc(size);
     if (galaxy == NULL) {
-        printf("ERROR: failed to allocate memory for galaxy, size needed %zd MB\n", size/MB);
+        printf("ERROR failed to allocate memory for galaxy, size needed %zd MB\n", size/MB);
         exit(1);
     }
 
@@ -128,15 +159,11 @@ static void galaxy_sim_init(void)
     // sort the galaxies by distance
     qsort(galaxy, MAX_GALAXY, sizeof(galaxy_t), qsort_compare);
 
-    // set initial time and display width
-    t = 13.8;
-    disp_width = get_diameter(t,NULL,NULL);
-
     // init scale factor graph
     gr = &graph[0];
     gr->exists    = true;
-    gr->max_xval  = 100;
-    gr->max_yval  = get_sf(100);
+    gr->max_xval  = t_max;
+    gr->max_yval  = get_sf(t_max);
     for (i = 0; i < MAX_GRAPH_POINTS; i++) {
         double tg = (i + 0.5) * (gr->max_xval / MAX_GRAPH_POINTS);
         gr->p[i].x = tg;
@@ -147,7 +174,7 @@ static void galaxy_sim_init(void)
     // init hubble param graph
     gr = &graph[1];
     gr->exists    = true;
-    gr->max_xval  = 100;
+    gr->max_xval  = t_max;
     gr->max_yval  = 1000;
     for (i = 0; i < MAX_GRAPH_POINTS; i++) {
         double tg = (i + 0.5) * (gr->max_xval / MAX_GRAPH_POINTS);
@@ -159,7 +186,7 @@ static void galaxy_sim_init(void)
     // init num_visible graph
     gr = &graph[2];
     gr->exists    = true;
-    gr->max_xval  = 100;
+    gr->max_xval  = t_max;
     gr->max_yval  = 1800;
     for (i = 0; i < MAX_GRAPH_POINTS; i++) {
         double _t = (i + 0.5) * (gr->max_xval / MAX_GRAPH_POINTS);
@@ -188,8 +215,8 @@ static void * time_run_thread(void *cx)
     while (true) {
         if (time_run) {
             t += TIME_RUN_INCR;
-            if (t >= 100) {
-                t = 99.9999;
+            if (t >= t_max) {
+                t = t_max-.0001;
                 time_run = false;
             }
         }
@@ -238,7 +265,7 @@ static void sim_visible(double t_sim)
     double h_si, sf;
     int idx, numv;
 
-    assert(t_sim >= .00038 && t_sim < 100);
+    assert(t_sim >= T_START && t_sim < t_max);
 
     // init photon backtracing variables
     d_photon_si = 0;
@@ -327,7 +354,7 @@ static void sim_visible(double t_sim)
     num_visible = numv;
 
     // add the num_visible value to the Num Visible graph (graph[2])
-    int i = (t_sim / 100) * MAX_GRAPH_POINTS;
+    int i = (t_sim / t_max) * MAX_GRAPH_POINTS;
     assert(i >= 0 && i < MAX_GRAPH_POINTS);
     graph[2].p[i].y = num_visible;
 }
@@ -347,7 +374,7 @@ static void display_init(void)
     win_width  = REQUESTED_WIN_WIDTH;
     win_height = REQUESTED_WIN_HEIGHT;
     if (sdl_init(&win_width, &win_height, fullscreen, resizeable, swap_white_black) < 0) {
-        printf("ERROR: sdl_init %dx%d failed\n", win_width, win_height);
+        printf("ERROR sdl_init %dx%d failed\n", win_width, win_height);
         exit(1);
     }
     printf("REQUESTED win_width=%d win_height=%d\n", REQUESTED_WIN_WIDTH, REQUESTED_WIN_HEIGHT);
@@ -355,7 +382,7 @@ static void display_init(void)
 
     // if created window does not have the requested size then exit
     if (win_width != REQUESTED_WIN_WIDTH || win_height != REQUESTED_WIN_HEIGHT) {
-        printf("ERROR: failed to create window with requested size\n");
+        printf("ERROR failed to create window with requested size\n");
         exit(1);
     }
 }
@@ -421,8 +448,8 @@ static void display_start(void *cx)
     if (hl.idx < 0 || hl.idx >= hl.n) {
         hl.idx = 0;
     }
-    gr->x_cursor = hl.g[hl.idx].d_mpc;
-    sprintf(gr->title, "MPC=%.*f  KM/S=%.*f  Z=%.*f  H=%.*f",
+    gr->x_cursor = (gr->n > 0 ? hl.g[hl.idx].d_mpc : NO_VALUE);
+    sprintf(gr->title, "D=%.*f MPC  V=%.*f KM/S  Z=%.*f  H=%.*f",
             PRECISION(hl.g[hl.idx].d_mpc), hl.g[hl.idx].d_mpc,
             PRECISION(hl.g[hl.idx].v_kmps), hl.g[hl.idx].v_kmps,
             PRECISION(hl.g[hl.idx].z), hl.g[hl.idx].z,
@@ -552,7 +579,7 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
                 SDL_EVENT_AUTO_DISP_WIDTH, SDL_EVENT_TYPE_MOUSE_CLICK, pane_cx);
 
         // register the SDL_EVENT_TIME_RUN which, when enabled, causes time
-        // to automatically advance to its maximum value of 100 BYR
+        // to automatically advance to its maximum value of t_max BYR
         sdl_render_text_and_register_event(
                 pane, pane->w-COL2X(15,FONT_SZ), ROW2Y(4,FONT_SZ), FONT_SZ, 
                 (time_run ? "TIME_IS_RUNNING" : "TIME_IS_STOPPED"),
@@ -589,14 +616,12 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
         switch (event->event_id) {
         case SDL_EVENT_TIME_RUN:
         case 'x':
+            // toggle time_run flag
             time_run = !time_run;
             break;
         case SDL_EVENT_AUTO_DISP_WIDTH:
+            // toggle auto_disp_width flag
             auto_disp_width = !auto_disp_width;
-            if (auto_disp_width) {
-                disp_width = get_diameter(t,NULL,NULL);
-                if (disp_width == 0) disp_width = 1e-7;
-            }
             break;
         case SDL_EVENT_KEY_UP_ARROW:
         case SDL_EVENT_KEY_DOWN_ARROW:
@@ -622,11 +647,11 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
         case SDL_EVENT_KEY_END:;
             // adjust t
             if (event->event_id == SDL_EVENT_KEY_INSERT) {
-                t = .000380;
+                t = T_START;
             } else if (event->event_id == SDL_EVENT_KEY_HOME) {
                 t = 13.8;
             } else if (event->event_id == SDL_EVENT_KEY_END) {
-                t = 99.9999;
+                t = t_max-.0001;
             } else {
                 double _t = t;
                 switch (event->event_id) {
@@ -635,15 +660,17 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
                 case SDL_EVENT_KEY_SHIFT_RIGHT_ARROW: _t += 1;  break;
                 case SDL_EVENT_KEY_SHIFT_LEFT_ARROW:  _t -= 1;  break;
                 }
-                if (_t < .00038) _t = .00038;
-                if (_t >= 100) _t = 99.9999;
+                if (_t < T_START) _t = T_START;
+                if (_t >= t_max) _t = t_max-.0001;
                 t = _t;
             }
             break;
         case '1':
+            // adjust the hubble-law graph cursor
             if (hl.idx > 0) hl.idx--;
             break;
         case '2':
+            // adjust the hubble-law graph cursor
             if (hl.idx < hl.n-1) hl.idx++;
             break;
         default: 

@@ -31,8 +31,8 @@
 #define DELTA_T_SECS (10000 * S_PER_YR)  // 10000 years
 
 #define T_START      0.000380   // time when the universe became transparent
+#define T_MAX        200.       // max time supported by the code in sf.c
 #define TEMP_START   3000.      // temperature of CMB at T_START
-#define T_MAX        200.       // max time supported by code in sf.c
 
 #define MB           0x100000
 #define FONT_SZ      24

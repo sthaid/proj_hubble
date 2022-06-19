@@ -526,7 +526,8 @@ double get_diameter_ex(double t_backtrack_start, double *d_backtrack_end_arg, do
     double d_backtrack_end, t_backtrack_end, diameter;
     double max_d_photon_si;
 
-    // xxx
+    // if caller requested t_backtrack_start that is within delta_t of .00038 then 
+    // return 0 for d_backtrack_end, max_photon_distance, and diameter
     if (t_backtrack_start < T_START+DELTA_T_SECS/S_PER_BYR/2) {
         if (d_backtrack_end_arg) {
             *d_backtrack_end_arg = 0;
