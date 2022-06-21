@@ -17,8 +17,6 @@
 #include <util_misc.h>
 #include <util_sdl.h>
 
-#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))  // xxx in misc
-
 #define M_PER_KM     1000.               // meters per kilometer
 #define M_PER_MPC    3.086e22            // meters per megaparsec
 #define S_PER_YR     3.156e7             // seconds per year (365.25 days)
@@ -28,16 +26,20 @@
 #define M_PER_BLYR   (M_PER_LYR * 1e9)
 #define c_si         3e8
 
-#define DELTA_T_SECS (10000 * S_PER_YR)  // 10000 years
-
 #define T_START      0.000380   // time when the universe became transparent
 #define T_MAX        200.       // max time supported by the code in sf.c
+#define DELTA_T_SECS (10000 * S_PER_YR)  // 10000 years
+
 #define TEMP_START   3000.      // temperature of CMB at T_START
 
-#define MB           0x100000
-#define FONT_SZ      24
-#define NO_VALUE     -999
-#define PRECISION(x) ((x) == 0 ? 0 : (x) < .001 ? 6 : (x) < 1 ? 3 : (x) < 100 ? 1 : 0)
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))  // xxx in misc
+#define MB            0x100000
+#define NO_VALUE      -999
+#define PRECISION(x)  ((x) == 0 ? 0 : (x) < .001 ? 6 : (x) < 1 ? 3 : (x) < 100 ? 1 : 0)
+
+#define FONT_SZ       24
+#define WIN_WIDTH     1800
+#define WIN_HEIGHT    900
 
 // sf.c
 void sf_init(void);
@@ -48,7 +50,7 @@ double get_diameter(double t_backtrack_start, double *d_backtrack_end, double *m
 double get_diameter_ex(double t_backtrack_start, double *d_backtrack_end, double *max_photon_distance);
 
 // graph.c
-#define MAX_GRAPH_POINTS 796
+#define MAX_GRAPH_POINTS 1000
 
 typedef struct {
     bool exists;

@@ -242,21 +242,18 @@ static void display_init(void)
     bool resizeable = false;
     bool swap_white_black = false;
 
-    #define REQUESTED_WIN_WIDTH  1600
-    #define REQUESTED_WIN_HEIGHT 800
-
     // init sdl, and get actual window width and height
-    win_width  = REQUESTED_WIN_WIDTH;
-    win_height = REQUESTED_WIN_HEIGHT;
+    win_width  = WIN_WIDTH;
+    win_height = WIN_HEIGHT;
     if (sdl_init(&win_width, &win_height, fullscreen, resizeable, swap_white_black) < 0) {
         printf("ERROR sdl_init %dx%d failed\n", win_width, win_height);
         exit(1);
     }
-    printf("REQUESTED win_width=%d win_height=%d\n", REQUESTED_WIN_WIDTH, REQUESTED_WIN_HEIGHT);
+    printf("REQUESTED win_width=%d win_height=%d\n", WIN_WIDTH, WIN_HEIGHT);
     printf("ACTUAL    win_width=%d win_height=%d\n", win_width, win_height);
 
     // if created window does not have the requested size then exit
-    if (win_width != REQUESTED_WIN_WIDTH || win_height != REQUESTED_WIN_HEIGHT) {
+    if (win_width != WIN_WIDTH || win_height != WIN_HEIGHT) {
         printf("ERROR failed to create window with requested size\n");
         exit(1);
     }
