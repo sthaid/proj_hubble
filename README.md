@@ -80,7 +80,7 @@ The distance of the patch of space (from which the photons were emitted at time 
 Earth is constantly increasing due to the Hubble flow. At time T_DONE this patch of space has moved
 to a distance of 46.4 blyr. Doubling this gives a diameter of the observable universe of 92.8 blyr.
 
-Another example, [CMB Simulation](https://youtu.be/xxxxxxxxxxxxxxxx),
+Another example, [CMB Simulation](https://youtu.be/jiRkqq_4a3Q),
 has T_DONE is set to 200 byr.
 
 Program Controls:
@@ -93,7 +93,7 @@ Program Display:
   * Yellow background indicates the temperature of the CMB.
   * Light blue circle at center is the Earth observation station.
   * Red dots are the photons.
-  * Red circle is the patches of space from which the CMB photons were emitted at time 0.00038.
+  * Red circle is the patches of space from which the CMB photons were emitted.
 * Graph panes: Scale Factor, Hubble Parameter, CMB Temperature, and Photon Distance to Earth.
 
 ## Galaxy TODO
