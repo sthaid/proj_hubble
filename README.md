@@ -73,7 +73,7 @@ of the photons from the perpetual earth observation station is chosen so that th
 will arrive at the earth at time T_DONE.
 
 In this example 
-![CMB T_DONE=13.8](/assets/cmb13pt8.webm)
+[CMB Simulation 13.8](https://youtu.be/TjxFwbwMWJ8)
 T_DONE is set to 13.8, and the initial distance of the Photon and Space are determined by the 
 program to be 0.042 blyr from the earth.
 As the simulation runs the distance of the Photons increases to a maximum of 5.9 blyr at time
