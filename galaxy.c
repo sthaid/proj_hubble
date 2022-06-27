@@ -129,8 +129,8 @@ static void sim_init(void)
     graph_t *gr;
 
     // set initial values for time and display width
-    t          = 13.8;
-    disp_width = get_diameter(t,NULL,NULL);
+    t          = T_START;
+    disp_width = get_diameter(13.8,NULL,NULL);
 
     // allocate memory for the galaxy array
     size = MAX_GALAXY * sizeof(galaxy_t);
