@@ -148,12 +148,18 @@ static void sim_init(void)
             g->x = (30 * (i + 1)) * (M_PER_MPC / M_PER_BLYR);
             g->y = 0;
             g->t_create = 1;
+            g->d = sqrt(squared(g->x) + squared(g->y));
         } else {
-            g->x = random_range(-1000, 1000);
-            g->y = random_range(-1000, 1000);
+            double d_squared;
+            while (true) {
+                g->x = random_range(-1000, 1000);
+                g->y = random_range(-1000, 1000);
+                d_squared = squared(g->x) + squared(g->y);
+                if (d_squared < (1000*1000)) break;
+            }
             g->t_create = random_triangular(0.75, 1.25);
+            g->d = sqrt(d_squared);
         }
-        g->d = sqrt(squared(g->x) + squared(g->y));
     }
 
     // sort the galaxies by distance

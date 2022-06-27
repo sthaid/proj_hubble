@@ -99,6 +99,7 @@ Program Display:
 ## Galaxy TODO
 
 This program simulaes the evolution of the universe from the time 0.00038 byr to 100 byr. 
+
 Example screencast: TODO
 
 This is a 2 dimensional simulation of the galaxies. Assume that the simulated galaxies are 
@@ -113,6 +114,8 @@ distance of the photon is due both to its speed (c) and the Hubble Flow. This ph
 is compared to the distance of each galaxy (which also varies with each time step). If the photon
 distance becomes greater than the distance to a galaxy then that galaxy is visible, and we also
 know the time at which the photon, which is observed at the Earth at time T, left the galaxy.
+
+TODO update num_visible below
 
 Timeline
 * Time 0.00038: simulation starts, universe has just become transparent, temperature=3000 degK.
@@ -130,7 +133,7 @@ Program Controls TODO::
 * Left/right or shift-left/right arrow keys: Adjust time.
 * INSERT: Set time to 0.00038 byr.
 * HOME: Set time to 13.8 byr.
-* END: Set time to t_max. T_max default=100 byr. T_max can be adjusted using program option --t_max=NNN.
+* END: Set time to t_max; t_max default=100 byr. T_max can be adjusted using program option --t_max=NNN.
 * '1', '2': adjust the Hubble Law graph cursor
 
 Program Display:
@@ -146,4 +149,3 @@ TODO Hubble Law graph.
 
 TODO
 - vary intensity of white points
-- use a disk for the galaxies
