@@ -193,7 +193,7 @@ static void sim_init(void)
     gr = &graph[2];
     gr->exists    = true;
     gr->max_xval  = t_max;
-    gr->max_yval  = 1800;
+    gr->max_yval  = 2300;
     for (i = 0; i < MAX_GRAPH_POINTS; i++) {
         double _t = (i + 0.5) * (gr->max_xval / MAX_GRAPH_POINTS);
         gr->p[i].x = _t;
@@ -472,6 +472,7 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
     #define SDL_EVENT_TIME_RUN     (SDL_EVENT_USER_DEFINED + 2)
 
     static int yellow[256];
+    static int white[256];
 
     assert(pane->w == pane->h);
 
@@ -487,6 +488,11 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
         for (int i = 0; i < 256; i++) {
             yellow[i] = FIRST_SDL_CUSTOM_COLOR+i;
             sdl_define_custom_color(yellow[i], i,i,0);
+        }
+
+        for (int i = 0; i < 256; i++) {
+            white[i] = FIRST_SDL_CUSTOM_COLOR+i+260;
+            sdl_define_custom_color(white[i], i,i,i);
         }
 
         return PANE_HANDLER_RET_NO_ACTION;
@@ -517,46 +523,50 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
         sdl_render_fill_rect(pane, &(rect_t){0,0,pane->w, pane->h}, yellow[yidx]);
 
         // Display the galaxies that are visible as white points and the
-        // galaxies that are not visible as blue points.
-        //
-        // The points1 array is for the visible galaxies (displayed white)
-        // The points2 array is for the not visible galaxies (displayed blue)
+        // galaxies that are not visible as blue points. The brightness of the
+        // white points represents the redshift of the galaxy.
         #define MAX_GALAXY_POINTS 500
 
-        point_t points1[MAX_GALAXY_POINTS];
-        int n1 = 0, color1 = SDL_WHITE;
-        point_t points2[MAX_GALAXY_POINTS];
-        int n2 = 0, color2 = SDL_BLUE;
-        int ctr = pane->w/2;
-        double scale = pane->w/disp_width;
-        double sf = get_sf(t);
+        point_t   points[257][MAX_GALAXY_POINTS];
+        int       n_points[257];
+        int       ctr   = pane->w/2;
+        double    scale = pane->w/disp_width;
+        double    sf    = get_sf(t);
+
+        memset(n_points, 0, sizeof(n_points));
 
         for (int i = 0; i < MAX_GALAXY; i++) {
             galaxy_t *g = &galaxy[i];
+            if (g->d * sf > disp_width * .7071) break;
+            if (t < g->t_create) continue;
 
-            if (g->d * sf > disp_width * .7071) {
-                break;
+            int idx;
+            if (g->t_visible == 0) {
+                idx = 256;
+            } else {
+                idx = 255 + log(get_sf(g->t_visible)/sf) * 50;
+                if (idx < 0) idx = 0;
+                if (idx > 255) idx = 255;
             }
 
-            if (t < g->t_create) {
-                continue;
-            }
-
-            point_t *p = (g->t_visible ? points1 : points2);
-            int *n     = (g->t_visible ? &n1 : &n2);
-            int color  = (g->t_visible ? color1 : color2);
+            point_t  *p = points[idx];
+            int      *n = &n_points[idx];
             
             p[*n].x = ctr + (g->x * sf) * scale;
             p[*n].y = ctr + (g->y * sf) * scale;
             *n = *n + 1;
+
             if (*n == MAX_GALAXY_POINTS) {
+                int color = (idx == 256 ? SDL_BLUE : white[idx]);
                 sdl_render_points(pane, p, *n, color, 1);
                 *n = 0;
             }
         }
 
-        sdl_render_points(pane, points1, n1, color1, 1);
-        sdl_render_points(pane, points2, n2, color2, 1);
+        for (int idx = 0; idx < 257; idx++) {
+            int color = (idx == 256 ? SDL_BLUE : white[idx]);
+            sdl_render_points(pane, points[idx], n_points[idx], color, 1);
+        }
 
         // display a circle around the observer, representing the current position
         // of the space from which the CMB photons originated
