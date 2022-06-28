@@ -32,7 +32,7 @@
 
 #define TEMP_START   3000.      // temperature of CMB at T_START
 
-#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))  // xxx in misc
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 #define MB            0x100000
 #define NO_VALUE      -999
 #define PRECISION(x)  ((x) == 0 ? 0 : (x) < .001 ? 6 : (x) < 1 ? 3 : (x) < 100 ? 1 : 0)
