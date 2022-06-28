@@ -1,4 +1,4 @@
-# Expanding Universe UNDER CONSTRUCTION
+# Expanding Universe
 
 This project contains two programs (cmb & galaxy), which simulate the cosmic background
 radiation, and the visibility of galaxies. The time range of this simulation is
