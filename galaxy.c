@@ -34,23 +34,23 @@ typedef struct {
     } g[1000];
     int n;
     int idx;
-} hubble_law_t;
+} hubble_diagram_t;
 
 //
 // variables
 //
 
-static int          win_width, win_height;
+static int              win_width, win_height;
 
-static galaxy_t    *galaxy;
-static double       t;
-static int          num_visible;
-static hubble_law_t hl;
+static galaxy_t        *galaxy;
+static double           t;
+static int              num_visible;
+static hubble_diagram_t hd;
 
-static double       t_max = DEFAULT_T_MAX;
-static bool         time_run;
-static bool         auto_disp_width;
-static double       disp_width;
+static double           t_max = DEFAULT_T_MAX;
+static bool             time_run;
+static bool             auto_disp_width;
+static double           disp_width;
 
 graph_t graph[4];
 
@@ -201,7 +201,7 @@ static void sim_init(void)
     }
     gr->n = MAX_GRAPH_POINTS;
 
-    // init hubble law graph; the graph points are initialized in display_start
+    // init hubble diagram graph; the graph points are initialized in display_start
     gr = &graph[3];
     gr->exists    = true;
     gr->max_xval  = 1000;
@@ -319,12 +319,12 @@ static void sim_visible(double t_sim)
         galaxy[i].t_visible = 0;
     }
 
-    // This section supports the Hubble Law graph.
+    // This section supports the Hubble Diagram graph.
     //
     // For galaxies that are visible and whose distance < 1000 MPC and z < .3,
-    // add the information for these galaxies to the Hubble Law (hl) table.
+    // add the information for these galaxies to the Hubble Diagram (hd) table.
     //
-    // This table is used to display the Hubble Law graph (graph[3]).
+    // This table is used to display the Hubble Diagram graph (graph[3]).
 
     double sfo, sfe, d, z, v, d_mpc, v_kmps;
     int n = 0;
@@ -348,13 +348,13 @@ static void sim_visible(double t_sim)
             break;
         }
 
-        hl.g[n].d_mpc = d_mpc;
-        hl.g[n].v_kmps = v_kmps;
-        hl.g[n].z = z;
-        hl.g[n].h = v_kmps / d_mpc;
+        hd.g[n].d_mpc = d_mpc;
+        hd.g[n].v_kmps = v_kmps;
+        hd.g[n].z = z;
+        hd.g[n].h = v_kmps / d_mpc;
         n++;
     }
-    hl.n = n;
+    hd.n = n;
 
     // publish num_visible
     num_visible = numv;
@@ -443,20 +443,20 @@ static void display_start(void *cx)
     sprintf(gr->title, "T=%.*f  NUM_VISIBLE=%d", PRECISION(t), t, num_visible);
 
     gr = &graph[3];
-    for (int i = 0; i < hl.n; i++) {
-        gr->p[i].x = hl.g[i].d_mpc;
-        gr->p[i].y = hl.g[i].v_kmps;
+    for (int i = 0; i < hd.n; i++) {
+        gr->p[i].x = hd.g[i].d_mpc;
+        gr->p[i].y = hd.g[i].v_kmps;
     }
-    gr->n = hl.n;
-    if (hl.idx < 0 || hl.idx >= hl.n) {
-        hl.idx = 0;
+    gr->n = hd.n;
+    if (hd.idx < 0 || hd.idx >= hd.n) {
+        hd.idx = 0;
     }
-    gr->x_cursor = (gr->n > 0 ? hl.g[hl.idx].d_mpc : NO_VALUE);
+    gr->x_cursor = (gr->n > 0 ? hd.g[hd.idx].d_mpc : NO_VALUE);
     sprintf(gr->title, "D=%.*f MPC  V=%.*f KM/S  Z=%.*f  H=%.*f",
-            PRECISION(hl.g[hl.idx].d_mpc), hl.g[hl.idx].d_mpc,
-            PRECISION(hl.g[hl.idx].v_kmps), hl.g[hl.idx].v_kmps,
-            PRECISION(hl.g[hl.idx].z), hl.g[hl.idx].z,
-            PRECISION(hl.g[hl.idx].h), hl.g[hl.idx].h);
+            PRECISION(hd.g[hd.idx].d_mpc), hd.g[hd.idx].d_mpc,
+            PRECISION(hd.g[hd.idx].v_kmps), hd.g[hd.idx].v_kmps,
+            PRECISION(hd.g[hd.idx].z), hd.g[hd.idx].z,
+            PRECISION(hd.g[hd.idx].h), hd.g[hd.idx].h);
 }
 
 // - - - - - - - - -  MAIN PANE HNDLR  - - - - - - - - - - - -
@@ -679,12 +679,12 @@ static int main_pane_hndlr(pane_cx_t * pane_cx, int request, void * init_params,
             }
             break;
         case '1':
-            // adjust the hubble-law graph cursor
-            if (hl.idx > 0) hl.idx--;
+            // adjust the Hubble Diagram graph cursor
+            if (hd.idx > 0) hd.idx--;
             break;
         case '2':
-            // adjust the hubble-law graph cursor
-            if (hl.idx < hl.n-1) hl.idx++;
+            // adjust the Hubble Diagram graph cursor
+            if (hd.idx < hd.n-1) hd.idx++;
             break;
         default: 
             break;

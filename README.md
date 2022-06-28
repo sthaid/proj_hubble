@@ -56,7 +56,7 @@ exponentially.
 The Earth is assumed to be a perpetual observation station, existing from time
 0.00038 byr to the distant future.
 
-The univers is flat, homogeneous and isotropic. The simulation makes no attempt to simulate
+The universe is flat, homogeneous and isotropic. The simulation makes no attempt to simulate
 fluctuations in the CMB, or in the distribution of galaxies.
 
 Galaxies are not moving. The apparent motion of galaxies is entirely due to the Hubble Flow.
@@ -65,7 +65,7 @@ Galaxies are not moving. The apparent motion of galaxies is entirely due to the 
 
 This program simulates the position of CMB photons and the patch of space from which these
 photon originated. The simulation is from time 0.00038 byr to T_DONE. The starting distance
-of the photons from the perpetual Earth Observatin Stationn is chosen so that the photons
+of the photons from the perpetual Earth Observation Station is chosen so that the photons
 will arrive at the earth at time T_DONE.
 
 In this example [CMB Simulation](https://youtu.be/TjxFwbwMWJ8) T_DONE is set to 13.8.
@@ -90,43 +90,44 @@ Program Controls:
 
 Program Display:
 * Main pane:
-  * Light blue circle at center is the Earth Observatin Stationn.
+  * Light blue circle at center is the Earth Observation Station.
   * Yellow background indicates the temperature of the CMB.
   * Red dots are the photons.
   * Red circle is the patches of space from which the CMB photons were emitted.
 * Graph panes: Scale Factor, Hubble Parameter, CMB Temperature, and Photon Distance to Earth.
 
-## Galaxy TODO
+## Galaxy
 
-This program simulaes the evolution of the universe from the time 0.00038 byr to 100 byr. 
+This program simulates the evolution of the universe from the time 0.00038 byr to 100 byr. 
 
-Example screencast: TODO
+Example screencast:
+* [Galaxy Simulation DisplayWidth=92.8](https://youtu.be/ZXaXLz3PrIc)
+* [Galaxy Simulation DisplayWidth=Auto](https://youtu.be/U8wX4eZI_BY)
 
 This is a 2 dimensional simulation of the galaxies. Assume that the simulated galaxies are 
 contained in a thin disk. The thickness of this disk is not precisely defined, but can be 
 considered to be the thickness needed to account for the number of galaxies in this simulation.
 
-A galaxy is visible at the Earth Observatin Stationn, at time T, if a photon from that galaxy arrives at
-the Earth Observatin Stationn at time T. This is implemented by starting from time T and working 
+A galaxy is visible at the Earth Observation Station, at time T, if a photon from that galaxy arrives at
+the Earth Observation Station at time T.
+Determining whether a galaxy is visible is implemented by starting from time T and working 
 backward in time in small time decrements (10000 years). The distance of a photon from the Earth
 observation station, which is initially 0 at time T, is computed for each time step. The change in
 distance of the photon is due both to its speed (c) and the Hubble Flow. This photon distance 
 is compared to the distance of each galaxy (which also varies with each time step). If the photon
 distance becomes greater than the distance to a galaxy then that galaxy is visible, and we also
-know the time at which the photon, which is observed at the Earth at time T, left the galaxy.
-
-TODO update num_visible below
+know the time at which the photon left the galaxy.
 
 Timeline
-* Time 0.00038: simulation starts, universe has just become transparent, temperature=3000 degK.
-* Time 0.00038 - 0.75: universe expands from 1/1100 to 1/8th of its present Scale Factor. The Hydrogen and Helium atoms begin to clump; these clumps will later form galaxies.
-* Time 0.75 - 1.25: Galaxies form.
-* Time 1.1: The Earth Observatin Stationn sees its first galaxy. The Hubble Parameter = 600 and is dropping rapdily.
-* Time 13.8 (now): Scale Factor = 1, Hubble Parameter = 71.2, Number of visible galaxies = 671.
-* Time 26.7: Scale Factor = 2, Hubble Parameter = 50, Number of visible galaxies = 1147.
-* Time 100: Scale Factor = 87, Hubble Parameter = 50 Number of visible galaxies has stabilized at 1726.
+* Time 0.00038: Simulation starts, universe has just become transparent, temperature=3000 degrees K.
+* Time 0.00038 to 0.75: Universe expands from 1/1100 to 1/8th of its present Scale Factor. The Hydrogen and Helium atoms begin to clump; these clumps will later form galaxies.
+* Time 0.75 to 1.25: Galaxy formation.
+* Time 1.1: The Earth Observation Station sees its first galaxy. The Hubble Parameter = 600 and is dropping rapidly.
+* Time 13.8 (now): Scale Factor = 1, Hubble Parameter = 71.2, Number of visible galaxies = 779.
+* Time 26.7: Scale Factor = 2, Hubble Parameter = 50, Number of visible galaxies = 1408.
+* Time 100: Scale Factor = 87, Hubble Parameter = 50 Number of visible galaxies has stabilized at 2171.
 
-Program Controls TODO::
+Program Controls:
 * TIME_IS_STOPPED/RUNNING or 'x': run or stop the simulation.
 * AUTO_DW_IS_OFF/ON: enable or disable the display width automatically tracking the diameter of the universe.
 * Up/down or shift-up/down arrow keys: Adjust display width.
@@ -134,18 +135,21 @@ Program Controls TODO::
 * INSERT: Set time to 0.00038 byr.
 * HOME: Set time to 13.8 byr.
 * END: Set time to t_max; t_max default=100 byr. T_max can be adjusted using program option --t_max=NNN.
-* '1', '2': adjust the Hubble Law graph cursor
+* '1', '2': adjust the Hubble Diagram graph cursor
 
 Program Display:
 * Main pane:
-  * Light blue circle at center is the Earth Observatin Stationn.
+  * Light blue circle at center is the Earth Observation Station.
   * Yellow background indicates the temperature of the CMB.
   * Red circle is the diameter of the universe.
-  * Blue points are galaxies that are not visible at the Earth Observatin Stationn.
-  * White points are galaxies thar are visible at the Earth Observatin Stationn. However the more distant these galaxies are the more difficult they will be to observe both because of their distance and red shift.
-* Graph panes: Scale Factor, Hubble Parameter, Number of Visible Galaxies, and Hubble Law
+  * Blue points are galaxies that are not visible at the Earth Observation Station.
+  * White points are galaxies that are visible at the Earth Observation Station.
+    The brightness of the white points indicate the galaxy's red shift.
+* Graph panes: Scale Factor, Hubble Parameter, Number of Visible Galaxies, and Hubble Diagram.
 
-TODO Hubble Law graph.
-
-TODO
-- vary intensity of white points
+The Hubble Diagram is a plot of galaxy velocity (which is proportional to it's red shift) vs 
+galaxy distance. The slope of the line in the Hubble Diagram is the Hubble Constant.
+References:
+* [Hubble Law](https://en.wikipedia.org/wiki/Hubble%27s_law)
+* [Hubble Diagram](https://en.wikipedia.org/wiki/Hubble%27s_law#Combining_redshifts_with_distance_measurements)
+* [Redshift Velocity](https://en.wikipedia.org/wiki/Hubble%27s_law#Redshift_velocity_and_recessional_velocity)
